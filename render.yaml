@@ -9,6 +9,8 @@ services:
     envVars:
       - key: PYTHON_VERSION
         value: 3.12.4
+      - key: APP_VERSION
+        value: traffic-lookup-fix-20260607
       - key: PUSH_TIMEZONE
         value: Asia/Taipei
       - key: PUSH_HOUR

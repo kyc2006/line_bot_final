@@ -43,6 +43,7 @@ def health_check():
     return {
         "status": "ok",
         "service": "taichung-traffic-line-bot",
+        "version": os.getenv("APP_VERSION", "local"),
         "line_bot_enabled": Config.LINE_BOT_ENABLED,
         "tdx_enabled": Config.TDX_ENABLED,
     }
