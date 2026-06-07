@@ -143,6 +143,8 @@ class FlexContentTest(unittest.TestCase):
         )
         payload = json.dumps(bubble, ensure_ascii=False)
         self.assertNotIn("剩餘", payload)
+        self.assertIn("資料更新中", payload)
+        self.assertIn("暫無即時車位", payload)
         for forbidden in ("未提供", "OpenData 未提供", "TDX 尚未提供", "None", "null", "N/A"):
             self.assertNotIn(forbidden, payload)
 
@@ -243,6 +245,23 @@ class TestEndpointTest(unittest.TestCase):
             with self.subTest(text=text):
                 self.assertEqual(self.get_reply(text)["type"], expected_type)
 
+    def test_quick_replies_are_attached_to_guided_flows(self) -> None:
+        cases = {
+            "主選單": ("查公車", "找 YouBike", "查停車場", "我的訂閱"),
+            "查公車": ("300", "301", "306", "307"),
+            "找 YouBike": ("YouBike 台中車站", "YouBike 逢甲", "YouBike 靜宜"),
+            "查停車場": ("台中車站停車場", "西屯停車場", "逢甲停車場"),
+            "換個地點": ("YouBike 台中車站", "換個地點", "主選單"),
+            "換個區域": ("台中車站停車場", "市政府停車場", "主選單"),
+        }
+
+        for text, expected_texts in cases.items():
+            with self.subTest(text=text):
+                reply = self.get_reply(text)
+                self.assertGreater(reply["quick_reply_count"], 0)
+                for expected_text in expected_texts:
+                    self.assertIn(expected_text, reply["quick_reply_texts"])
+
     def test_bus_inputs_return_flex(self) -> None:
         bus_inputs = [
             "300",
@@ -261,17 +280,23 @@ class TestEndpointTest(unittest.TestCase):
                     reply = self.get_reply(text)
                     self.assertEqual(reply["type"], "flex")
                     self.assertEqual(reply["alt_text"], "300 公車即時到站資訊")
+                    self.assertIn("查詢 300", reply["quick_reply_texts"])
+                    self.assertIn("訂閱300", reply["quick_reply_texts"])
 
     def test_youbike_and_parking_inputs_return_flex(self) -> None:
         with (
             patch.object(app_module, "search_youbike", return_value=SAMPLE_STATIONS),
             patch.object(app_module, "search_parking", return_value=SAMPLE_PARKING),
         ):
-            self.assertEqual(self.get_reply("YouBike台中車站")["type"], "flex")
+            bike_reply = self.get_reply("YouBike台中車站")
+            self.assertEqual(bike_reply["type"], "flex")
+            self.assertIn("YouBike 台中車站", bike_reply["quick_reply_texts"])
             self.assertEqual(self.get_reply("ubike台中車站")["type"], "flex")
             self.assertEqual(self.get_reply("腳踏車台中車站")["type"], "flex")
             self.assertEqual(self.get_reply("停車場")["type"], "flex")
-            self.assertEqual(self.get_reply("西屯停車場")["type"], "flex")
+            parking_reply = self.get_reply("西屯停車場")
+            self.assertEqual(parking_reply["type"], "flex")
+            self.assertIn("西屯停車場", parking_reply["quick_reply_texts"])
 
     def test_unknown_input_returns_flex_hint(self) -> None:
         reply = self.get_reply("@@@")

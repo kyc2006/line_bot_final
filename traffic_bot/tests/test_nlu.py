@@ -51,6 +51,9 @@ class NaturalLanguageIntentTest(unittest.TestCase):
             "我追蹤了哪些公車": "subscription_list",
             "YouBike": "bike_guide",
             "查停車": "parking_guide",
+            "換個地點": "bike_guide",
+            "換個區域": "parking_guide",
+            "重新查詢": "retry_guide",
             "randomtext": "unknown",
         }
         for text, name in expectations.items():

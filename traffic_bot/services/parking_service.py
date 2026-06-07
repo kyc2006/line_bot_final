@@ -37,7 +37,7 @@ def _parking_id(item: dict) -> str:
 
 def _parking_status(spaces: int | None) -> str:
     if spaces is None:
-        return ""
+        return "暫無即時車位"
     if spaces <= 0:
         return "已滿"
     if spaces <= 20:
@@ -247,6 +247,8 @@ def format_parking_text(parking_lots: list[dict]) -> str:
         detail_lines = ["", f"{index}. 停車場名稱：{lot['name']}"]
         if isinstance(lot.get("available_spaces"), int):
             detail_lines.append(f"剩餘車位：{lot['available_spaces']} 格")
+        else:
+            detail_lines.append("剩餘車位：資料更新中")
         if lot.get("total_spaces") not in (None, ""):
             detail_lines.append(f"總車位：{lot.get('total_spaces')}")
         if lot.get("status_text"):

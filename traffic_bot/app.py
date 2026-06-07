@@ -46,7 +46,7 @@ from services.bus_service import (
     parse_bus_route,
 )
 from services.parking_service import format_parking_text, parse_parking_query, search_parking
-from utils.line_message import flex_or_text
+from utils.line_message import flex_or_text, make_quick_reply
 from utils.nlu import UserIntent, parse_user_intent
 
 
@@ -59,6 +59,47 @@ line_bot_api = MessagingApi(api_client)
 subscription_repository = SubscriptionRepository()
 daily_push_started = False
 daily_push_start_lock = threading.Lock()
+
+MAIN_QUICK_REPLIES = [
+    ("查公車", "查公車"),
+    ("找 YouBike", "找 YouBike"),
+    ("查停車場", "查停車場"),
+    ("我的訂閱", "我的訂閱"),
+    ("服務狀態", "服務狀態"),
+    ("使用說明", "使用說明"),
+]
+
+BUS_GUIDE_QUICK_REPLIES = [
+    ("300", "300"),
+    ("301", "301"),
+    ("306", "306"),
+    ("307", "307"),
+    ("回主選單", "主選單"),
+]
+
+YOUBIKE_GUIDE_QUICK_REPLIES = [
+    ("台中車站", "YouBike 台中車站"),
+    ("逢甲", "YouBike 逢甲"),
+    ("靜宜", "YouBike 靜宜"),
+    ("換個地點", "換個地點"),
+    ("回主選單", "主選單"),
+]
+
+PARKING_GUIDE_QUICK_REPLIES = [
+    ("台中車站", "台中車站停車場"),
+    ("西屯", "西屯停車場"),
+    ("逢甲", "逢甲停車場"),
+    ("市政府", "市政府停車場"),
+    ("回主選單", "主選單"),
+]
+
+UNKNOWN_QUICK_REPLIES = [
+    ("查公車", "查公車"),
+    ("找 YouBike", "找 YouBike"),
+    ("查停車場", "查停車場"),
+    ("使用說明", "使用說明"),
+    ("主選單", "主選單"),
+]
 
 
 @app.get("/")
@@ -89,6 +130,7 @@ def test_reply():
         "confidence": intent.confidence,
         "extracted_entities": intent.entities,
         "message_count": len(replies),
+        "quick_reply_count": sum(reply.get("quick_reply_count", 0) for reply in replies),
         "replies": replies,
     }
 
@@ -149,6 +191,7 @@ def build_reply_messages(text: str, user_id: str | None = None) -> list:
                 "台中交通小幫手使用說明",
                 help_bubble,
                 usage_text(),
+                MAIN_QUICK_REPLIES,
             )
         ]
 
@@ -158,11 +201,17 @@ def build_reply_messages(text: str, user_id: str | None = None) -> list:
                 "台中交通小幫手服務狀態",
                 lambda: service_status_bubble(Config.LINE_BOT_ENABLED, Config.TDX_ENABLED),
                 service_status_text(),
+                MAIN_QUICK_REPLIES,
             )
         ]
 
     if text == "即時路況":
-        return [TextMessage(text="即時路況功能準備中，之後會加入主要幹道壅塞提醒。")]
+        return [
+            TextMessage(
+                text="即時路況功能準備中，之後會加入主要幹道壅塞提醒。",
+                quick_reply=make_quick_reply(MAIN_QUICK_REPLIES),
+            )
+        ]
 
     if intent.name == "bus_guide":
         return build_bus_prompt_messages()
@@ -173,6 +222,7 @@ def build_reply_messages(text: str, user_id: str | None = None) -> list:
                 "台中熱門公車路線",
                 popular_routes_bubble,
                 "熱門公車路線：300、301、302、307、310、323。",
+                BUS_GUIDE_QUICK_REPLIES,
             )
         ]
 
@@ -200,11 +250,15 @@ def build_reply_messages(text: str, user_id: str | None = None) -> list:
     if intent.name == "bus_search":
         return build_bus_eta_messages(intent.route, intent.entities.get("destination", ""))
 
+    if intent.name == "retry_guide":
+        return build_retry_guide_messages()
+
     return [
         flex_or_text(
             "台中交通小幫手查詢提示",
             unknown_input_bubble,
             "請輸入要查詢的公車路線，例如：300、公車 300、查 300 到站。也可以輸入「主選單」或「使用說明」。",
+            UNKNOWN_QUICK_REPLIES,
         )
     ]
 
@@ -215,6 +269,7 @@ def build_main_menu_messages() -> list:
             alt_text="台中交通小幫手主選單",
             flex_builder=main_menu_bubble,
             fallback_text="台中交通小幫手：輸入 300 查公車、YouBike 台中車站查站點、停車場查空位。",
+            quick_reply_items=MAIN_QUICK_REPLIES,
         )
     ]
 
@@ -230,6 +285,7 @@ def build_bus_prompt_messages() -> list:
                 [("熱門路線", "熱門路線", "primary"), ("主選單", "主選單", None)],
             ),
             "請輸入公車路線，例如：300、307、300 往台中車站。",
+            BUS_GUIDE_QUICK_REPLIES,
         )
     ]
 
@@ -245,6 +301,7 @@ def build_youbike_prompt_messages() -> list:
                 [("換個地點", "換個地點", "primary"), ("主選單", "主選單", None)],
             ),
             "目前尚未開啟定位查詢，請輸入地點，例如：YouBike 台中車站。",
+            YOUBIKE_GUIDE_QUICK_REPLIES,
         )
     ]
 
@@ -260,22 +317,34 @@ def build_parking_prompt_messages() -> list:
                 [("換個區域", "換個區域", "primary"), ("主選單", "主選單", None)],
             ),
             "請輸入地點或區域，例如：台中車站停車場、西屯停車場。",
+            PARKING_GUIDE_QUICK_REPLIES,
         )
     ]
 
 
 def summarize_message(message) -> dict:
+    quick_reply = getattr(message, "quick_reply", None)
+    quick_reply_items = getattr(quick_reply, "items", None) or []
+    quick_reply_texts = [
+        item.action.text
+        for item in quick_reply_items
+        if getattr(item, "action", None) and getattr(item.action, "text", None)
+    ]
     if isinstance(message, TextMessage):
         return {
             "type": "text",
             "text": message.text,
             "summary": message.text[:80],
+            "quick_reply_count": len(quick_reply_items),
+            "quick_reply_texts": quick_reply_texts,
         }
     if isinstance(message, FlexMessage):
         return {
             "type": "flex",
             "alt_text": message.alt_text,
             "summary": message.alt_text,
+            "quick_reply_count": len(quick_reply_items),
+            "quick_reply_texts": quick_reply_texts,
         }
     return {"type": message.__class__.__name__, "summary": message.__class__.__name__}
 
@@ -292,20 +361,36 @@ def is_youbike_query(text: str) -> bool:
 
 
 def build_bus_eta_messages(route: str, destination: str = "") -> list:
+    quick_replies = [
+        ("重新整理", f"查詢 {route}"),
+        ("訂閱路線", f"訂閱{route}"),
+        ("主選單", "主選單"),
+    ]
     try:
         arrivals = get_bus_eta(route, destination=destination)
     except Exception as exc:
         app.logger.warning("Bus ETA lookup failed for %s: %s", route, exc)
-        return [TextMessage(text=f"目前查不到 {route} 的即時資料，請確認路線是否正確，或稍後再試。")]
+        return [
+            TextMessage(
+                text=f"目前查不到 {route} 的即時資料，請確認路線是否正確，或稍後再試。",
+                quick_reply=make_quick_reply(quick_replies),
+            )
+        ]
 
     if not arrivals:
-        return [TextMessage(text=f"目前查不到 {route} 的即時資料，請確認路線是否正確，或稍後再試。")]
+        return [
+            TextMessage(
+                text=f"目前查不到 {route} 的即時資料，請確認路線是否正確，或稍後再試。",
+                quick_reply=make_quick_reply(quick_replies),
+            )
+        ]
 
     fallback_text = format_bus_eta_text(route, arrivals)
     message = flex_or_text(
         f"{route} 公車即時到站資訊",
         lambda: bus_eta_bubble(route, arrivals),
         fallback_text,
+        quick_replies,
     )
     return [message]
 
@@ -322,7 +407,12 @@ def build_youbike_messages(text: str) -> list:
         stations = search_youbike(text)
     except Exception as exc:
         app.logger.warning("YouBike lookup failed: %s", exc)
-        return [TextMessage(text="目前 YouBike 資料暫時無法取得，請稍後再試。")]
+        return [
+            TextMessage(
+                text="目前 YouBike 資料暫時無法取得，請稍後再試。",
+                quick_reply=make_quick_reply(YOUBIKE_GUIDE_QUICK_REPLIES),
+            )
+        ]
 
     if not stations:
         return [
@@ -330,6 +420,7 @@ def build_youbike_messages(text: str) -> list:
                 "目前查不到可用資料",
                 lambda: empty_state_bubble("目前查不到可用資料", "請換個地點或稍後再試。", "YouBike"),
                 format_youbike_text(text, stations),
+                [("重新輸入", "找 YouBike"), ("使用說明", "使用說明"), ("主選單", "主選單")],
             )
         ]
 
@@ -339,6 +430,7 @@ def build_youbike_messages(text: str) -> list:
             "YouBike 即時車位資訊",
             lambda: youbike_bubble(query, stations),
             fallback_text,
+            [("重新查詢", f"YouBike {query}"), ("換個地點", "換個地點"), ("主選單", "主選單")],
         )
     ]
 
@@ -352,7 +444,12 @@ def build_parking_messages(text: str = "停車場") -> list:
         lots = search_parking(text)
     except Exception as exc:
         app.logger.warning("Parking lookup failed: %s", exc)
-        return [TextMessage(text="目前停車場資料暫時無法取得，請稍後再試。")]
+        return [
+            TextMessage(
+                text="目前停車場資料暫時無法取得，請稍後再試。",
+                quick_reply=make_quick_reply(PARKING_GUIDE_QUICK_REPLIES),
+            )
+        ]
 
     if not lots:
         return [
@@ -360,14 +457,28 @@ def build_parking_messages(text: str = "停車場") -> list:
                 "目前查不到可用資料",
                 lambda: empty_state_bubble("目前查不到可用資料", "請換個地點或稍後再試。", "停車"),
                 "目前查不到台中停車場資料，請換個地點或稍後再試。",
+                [("重新輸入", "查停車場"), ("使用說明", "使用說明"), ("主選單", "主選單")],
             )
         ]
 
+    retry_text = f"{query}停車場" if query else "查停車場"
     return [
         flex_or_text(
             "台中停車場即時空位",
             lambda: parking_bubble(lots, query=query),
             format_parking_text(lots),
+            [("重新查詢", retry_text), ("換個區域", "換個區域"), ("主選單", "主選單")],
+        )
+    ]
+
+
+def build_retry_guide_messages() -> list:
+    return [
+        flex_or_text(
+            "請選擇要重新查詢的項目",
+            unknown_input_bubble,
+            "請選擇要重新查詢的項目：查公車、找 YouBike、查停車場。",
+            UNKNOWN_QUICK_REPLIES,
         )
     ]
 
@@ -405,15 +516,15 @@ def service_status_text() -> str:
 
 def build_subscribe_messages(user_id: str | None, route: str) -> list:
     if not user_id:
-        return [TextMessage(text="無法取得 LINE 使用者 ID，暫時不能訂閱。")]
+        return [TextMessage(text="無法取得 LINE 使用者 ID，暫時不能訂閱。", quick_reply=make_quick_reply(MAIN_QUICK_REPLIES))]
     if not route:
-        return [TextMessage(text="請輸入要訂閱的路線，例如：訂閱 300")]
+        return [TextMessage(text="請輸入要訂閱的路線，例如：訂閱 300", quick_reply=make_quick_reply(BUS_GUIDE_QUICK_REPLIES))]
 
     try:
         created, routes = subscription_repository.subscribe(user_id, route)
     except SubscriptionStorageError as exc:
         app.logger.warning("Subscribe failed: %s", exc)
-        return [TextMessage(text="訂閱資料暫時無法更新，請稍後再試。")]
+        return [TextMessage(text="訂閱資料暫時無法更新，請稍後再試。", quick_reply=make_quick_reply(MAIN_QUICK_REPLIES))]
 
     if created:
         title = f"已訂閱 {route} 公車"
@@ -427,21 +538,22 @@ def build_subscribe_messages(user_id: str | None, route: str) -> list:
             title,
             lambda: subscription_status_bubble(title, body, routes),
             fallback,
+            MAIN_QUICK_REPLIES,
         )
     ]
 
 
 def build_unsubscribe_messages(user_id: str | None, route: str) -> list:
     if not user_id:
-        return [TextMessage(text="無法取得 LINE 使用者 ID，暫時不能取消訂閱。")]
+        return [TextMessage(text="無法取得 LINE 使用者 ID，暫時不能取消訂閱。", quick_reply=make_quick_reply(MAIN_QUICK_REPLIES))]
     if not route:
-        return [TextMessage(text="請輸入要取消的路線，例如：取消訂閱 300")]
+        return [TextMessage(text="請輸入要取消的路線，例如：取消訂閱 300", quick_reply=make_quick_reply(BUS_GUIDE_QUICK_REPLIES))]
 
     try:
         removed, routes = subscription_repository.unsubscribe(user_id, route)
     except SubscriptionStorageError as exc:
         app.logger.warning("Unsubscribe failed: %s", exc)
-        return [TextMessage(text="訂閱資料暫時無法更新，請稍後再試。")]
+        return [TextMessage(text="訂閱資料暫時無法更新，請稍後再試。", quick_reply=make_quick_reply(MAIN_QUICK_REPLIES))]
 
     if removed:
         title = f"已取消訂閱 {route}"
@@ -457,19 +569,20 @@ def build_unsubscribe_messages(user_id: str | None, route: str) -> list:
             title,
             lambda: subscription_status_bubble(title, body, routes),
             fallback,
+            MAIN_QUICK_REPLIES,
         )
     ]
 
 
 def build_subscription_list_messages(user_id: str | None) -> list:
     if not user_id:
-        return [TextMessage(text="無法取得 LINE 使用者 ID，暫時不能查看訂閱。")]
+        return [TextMessage(text="無法取得 LINE 使用者 ID，暫時不能查看訂閱。", quick_reply=make_quick_reply(MAIN_QUICK_REPLIES))]
 
     try:
         routes = subscription_repository.list_routes(user_id)
     except SubscriptionStorageError as exc:
         app.logger.warning("List subscriptions failed: %s", exc)
-        return [TextMessage(text="訂閱資料暫時無法讀取，請稍後再試。")]
+        return [TextMessage(text="訂閱資料暫時無法讀取，請稍後再試。", quick_reply=make_quick_reply(MAIN_QUICK_REPLIES))]
 
     if not routes:
         title = "我的訂閱"
@@ -479,6 +592,7 @@ def build_subscription_list_messages(user_id: str | None) -> list:
                 title,
                 lambda: subscription_status_bubble(title, body, []),
                 body,
+                MAIN_QUICK_REPLIES,
             )
         ]
 
@@ -490,6 +604,7 @@ def build_subscription_list_messages(user_id: str | None) -> list:
             title,
             lambda: subscription_status_bubble(title, body, routes),
             fallback,
+            MAIN_QUICK_REPLIES,
         )
     ]
 

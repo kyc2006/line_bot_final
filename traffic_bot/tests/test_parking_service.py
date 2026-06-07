@@ -45,7 +45,7 @@ class ParkingDisplayTest(unittest.TestCase):
         self.assertIn("尚有車位", payload)
         self.assertNotIn("資料更新中", payload)
 
-    def test_missing_numeric_fields_hide_placeholder_text(self) -> None:
+    def test_missing_numeric_fields_keep_updating_card(self) -> None:
         bubble = parking_bubble(
             [
                 {
@@ -59,8 +59,27 @@ class ParkingDisplayTest(unittest.TestCase):
             query="市政府",
         )
         payload = json.dumps(bubble, ensure_ascii=False)
-        for forbidden in ("資料更新中", "None", "null", "N/A", "未提供"):
+        self.assertIn("市政公園停車場", payload)
+        self.assertIn("資料更新中", payload)
+        self.assertIn("暫無即時車位", payload)
+        self.assertIn("總車位：120 格", payload)
+        for forbidden in ("None", "null", "N/A", "未提供", "OpenData 未提供"):
             self.assertNotIn(forbidden, payload)
+
+    def test_address_only_parking_card_is_kept(self) -> None:
+        bubble = parking_bubble(
+            [
+                {
+                    "name": "",
+                    "available_spaces": None,
+                    "address": "台中市西屯區市政路",
+                }
+            ],
+            query="市政府",
+        )
+        payload = json.dumps(bubble, ensure_ascii=False)
+        self.assertIn("台中市西屯區市政路", payload)
+        self.assertIn("資料更新中", payload)
 
     def test_tdx_availability_mapping_keeps_zero(self) -> None:
         availability = [

@@ -78,7 +78,7 @@ def bus_eta_bubble(route: str, arrivals: list[dict], limit: int = 6) -> dict:
         },
         "footer": action_buttons(
             [
-                ("重新整理", route, "primary"),
+                ("重新整理", f"查詢 {route}", "primary"),
                 ("訂閱路線", f"訂閱{route}", None),
                 ("主選單", "主選單", None),
             ]

@@ -70,6 +70,9 @@ def parse_user_intent(text: str) -> UserIntent:
     if compact in ("服務狀態", "資料來源", "status") or _has_any(compact, ("系統正常嗎", "tdx正常嗎", "機器人正常嗎")):
         return _intent("status", 0.95, normalized)
 
+    if compact in ("重新查詢", "重新輸入"):
+        return _intent("retry_guide", 0.82, normalized)
+
     if compact in ("公車", "查公車", "bus", "重新整理"):
         return _intent("bus_guide", 0.9, normalized)
 

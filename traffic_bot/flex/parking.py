@@ -5,7 +5,7 @@ from utils.time_format import display_time
 
 
 def parking_bubble(lots: list[dict], query: str = "", limit: int = 6) -> dict:
-    shown = lots[:limit]
+    shown = [lot for lot in lots if _has_parking_identity(lot)][:limit]
     update_time = display_time(shown[0].get("update_time", "")) if shown and shown[0].get("update_time") else ""
     source = shown[0].get("source", "TDX") if shown else "TDX"
     subtitle = f"資料來源：{source}"
@@ -43,7 +43,7 @@ def parking_bubble(lots: list[dict], query: str = "", limit: int = 6) -> dict:
             "layout": "vertical",
             "spacing": "md",
             "backgroundColor": "#F8FAFC",
-            "contents": [_lot_card(lot) for lot in shown],
+            "contents": [_lot_card(lot) for lot in shown] or [info_text("目前查不到可用資料，請換個地點或稍後再試。")],
         },
         "footer": action_buttons(
             [
@@ -56,9 +56,13 @@ def parking_bubble(lots: list[dict], query: str = "", limit: int = 6) -> dict:
 
 
 def _lot_card(lot: dict) -> dict:
-    status = lot.get("status_text", "")
+    available_spaces = lot.get("available_spaces")
+    has_available_spaces = isinstance(available_spaces, int)
+    status = _display_status(lot)
     color = "#0F766E"
-    if status == "車位緊張":
+    if not has_available_spaces:
+        color = "#475569"
+    elif status == "車位緊張":
         color = "#B45309"
     elif status == "已滿":
         color = "#DC2626"
@@ -66,7 +70,7 @@ def _lot_card(lot: dict) -> dict:
     contents = [
         {
             "type": "text",
-            "text": lot.get("name", "停車場"),
+            "text": _parking_title(lot),
             "weight": "bold",
             "size": "md",
             "color": "#0F172A",
@@ -74,50 +78,7 @@ def _lot_card(lot: dict) -> dict:
         }
     ]
 
-    if isinstance(lot.get("available_spaces"), int):
-        available_spaces = lot["available_spaces"]
-        contents.append(
-            {
-                "type": "box",
-                "layout": "horizontal",
-                "contents": [
-                    {
-                        "type": "text",
-                        "text": f"剩餘 {available_spaces} 格",
-                        "weight": "bold",
-                        "size": "xl",
-                        "color": color,
-                        "flex": 3,
-                    },
-                    *(
-                        [
-                            {
-                                "type": "text",
-                                "text": status,
-                                "size": "sm",
-                                "align": "end",
-                                "color": color,
-                                "flex": 2,
-                                "wrap": True,
-                            }
-                        ]
-                        if has_value(status)
-                        else []
-                    ),
-                ],
-            }
-        )
-    elif has_value(status):
-        contents.append(
-            {
-                "type": "text",
-                "text": status,
-                "weight": "bold",
-                "size": "md",
-                "color": color,
-                "wrap": True,
-            }
-        )
+    contents.append(_availability_row(available_spaces, status, color))
 
     for row in (
         info_row("總車位", _total_spaces_text(lot)),
@@ -143,6 +104,61 @@ def _lot_card(lot: dict) -> dict:
         "spacing": "sm",
         "contents": contents,
     }
+
+
+def _availability_row(available_spaces, status: str, color: str) -> dict:
+    primary_text = (
+        f"剩餘 {available_spaces} 格"
+        if isinstance(available_spaces, int)
+        else "資料更新中"
+    )
+    return {
+        "type": "box",
+        "layout": "horizontal",
+        "contents": [
+            {
+                "type": "text",
+                "text": primary_text,
+                "weight": "bold",
+                "size": "xl",
+                "color": color,
+                "flex": 3,
+                "wrap": True,
+            },
+            {
+                "type": "text",
+                "text": status,
+                "size": "sm",
+                "align": "end",
+                "color": color,
+                "flex": 2,
+                "wrap": True,
+            },
+        ],
+    }
+
+
+def _display_status(lot: dict) -> str:
+    available_spaces = lot.get("available_spaces")
+    if isinstance(available_spaces, int):
+        if available_spaces <= 0:
+            return "已滿"
+        if available_spaces <= 20:
+            return "車位緊張"
+        return "尚有車位"
+    return "暫無即時車位"
+
+
+def _parking_title(lot: dict) -> str:
+    if has_value(lot.get("name")):
+        return str(lot["name"])
+    if has_value(lot.get("address")):
+        return str(lot["address"])
+    return "停車場"
+
+
+def _has_parking_identity(lot: dict) -> bool:
+    return has_value(lot.get("name")) or has_value(lot.get("address"))
 
 
 def _total_spaces_text(lot: dict) -> str:

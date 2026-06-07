@@ -20,7 +20,17 @@ def has_value(value) -> bool:
         return False
     if isinstance(value, str):
         normalized = value.strip()
-        return normalized not in ("", "未提供", "None", "null", "N/A", "TDX 尚未提供此欄位", "OpenData 尚未提供此欄位")
+        return normalized not in (
+            "",
+            "未提供",
+            "未提供資料",
+            "None",
+            "null",
+            "N/A",
+            "TDX 尚未提供此欄位",
+            "OpenData 尚未提供此欄位",
+            "OpenData 未提供資料",
+        )
     if isinstance(value, (list, tuple, dict, set)):
         return bool(value)
     return True
