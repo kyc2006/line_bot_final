@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import re
+
 import requests
 from requests import RequestException
 
@@ -7,10 +9,26 @@ from config import Config
 from services.tdx_client import TDXError, tdx_client
 
 
-def _zh_tw(value: dict | None, fallback: str = "未提供") -> str:
-    if not isinstance(value, dict):
+def _text(value, fallback: str = "未提供") -> str:
+    if isinstance(value, dict):
+        return value.get("Zh_tw") or value.get("En") or fallback
+    if value is None:
         return fallback
-    return value.get("Zh_tw") or value.get("En") or fallback
+    return str(value) or fallback
+
+
+def _canonical(value: str) -> str:
+    return re.sub(r"\s+", "", value.lower().replace("臺", "台"))
+
+
+def parse_parking_query(text: str) -> str:
+    query = text.strip()
+    for keyword in ("停車場", "停車", "查詢", "查", "找", "車位", "空位"):
+        query = query.replace(keyword, " ")
+    query = re.sub(r"\s+", " ", query).strip(" ：:，,。")
+    if query in ("附近", "附近的"):
+        return ""
+    return query
 
 
 def _parking_id(item: dict) -> str:
@@ -27,32 +45,56 @@ def _parking_status(spaces: int | None) -> str:
     return "尚有車位"
 
 
-def _load_tdx_parking(limit: int) -> list[dict]:
+def _opendata_status(rgb: str | None) -> str:
+    return {
+        "G": "尚有車位",
+        "Y": "車位緊張",
+        "R": "已滿",
+        "B": "資料更新中",
+    }.get(str(rgb or "").upper(), "資料更新中")
+
+
+def _to_int(value) -> int | None:
+    try:
+        if value in (None, ""):
+            return None
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _load_tdx_parking() -> list[dict]:
     availability = tdx_client.get(
         "v1/Parking/OffStreet/ParkingAvailability/City/Taichung",
         params={"$top": 1000},
     )
     lots = tdx_client.get("v1/Parking/OffStreet/CarPark/City/Taichung", params={"$top": 1000})
+    if not isinstance(availability, list) or not isinstance(lots, list):
+        raise TDXError("停車場 API 回傳格式異常。")
 
     lot_map = {_parking_id(item): item for item in lots}
     results = []
     for item in availability:
         parking_id = _parking_id(item)
         lot = lot_map.get(parking_id, {})
-        name = _zh_tw(
+        name = _text(
             item.get("CarParkName") or lot.get("CarParkName") or lot.get("ParkingName"),
             parking_id or "未提供名稱",
         )
         address = (
-            lot.get("Address")
-            or _zh_tw(lot.get("CarParkAddress"), "")
-            or item.get("Address")
-            or "未提供地址"
+            _text(lot.get("Address"), "")
+            or _text(lot.get("CarParkAddress"), "")
+            or _text(item.get("Address"), "")
+            or "TDX 尚未提供此欄位"
         )
-        spaces = item.get("AvailableSpaces")
+        spaces = _to_int(item.get("AvailableSpaces"))
         if spaces is None:
-            spaces = item.get("AvailableCar")
-        total_spaces = item.get("TotalSpaces") or lot.get("TotalSpaces") or lot.get("CarParkCapacity")
+            spaces = _to_int(item.get("AvailableCar"))
+        total_spaces = (
+            _to_int(item.get("TotalSpaces"))
+            or _to_int(lot.get("TotalSpaces"))
+            or _to_int(lot.get("CarParkCapacity"))
+        )
 
         results.append(
             {
@@ -60,13 +102,19 @@ def _load_tdx_parking(limit: int) -> list[dict]:
                 "available_spaces": spaces if spaces is not None else "未提供",
                 "total_spaces": total_spaces or "未提供",
                 "address": address,
-                "status_text": _parking_status(spaces if isinstance(spaces, int) else None),
+                "status_text": _parking_status(spaces),
                 "update_time": item.get("UpdateTime") or item.get("SrcUpdateTime") or "",
+                "fare_description": _text(lot.get("FareDescription"), "TDX 尚未提供此欄位"),
+                "open_time": _text(
+                    lot.get("OperationTime") or lot.get("BusinessHours"),
+                    "TDX 尚未提供此欄位",
+                ),
+                "source": "TDX",
             }
         )
 
     if not results:
-        return _load_opendata_parking(limit)
+        return _load_opendata_parking()
 
     results.sort(
         key=lambda row: (
@@ -74,37 +122,57 @@ def _load_tdx_parking(limit: int) -> list[dict]:
             -(row["available_spaces"] if isinstance(row["available_spaces"], int) else -1),
         )
     )
-    return results[:limit]
+    return results
 
 
-def _load_opendata_parking(limit: int) -> list[dict]:
+def _load_opendata_parking() -> list[dict]:
     try:
         response = requests.get(Config.TAICHUNG_PARKING_OPENDATA_URL, timeout=Config.REQUEST_TIMEOUT)
         response.raise_for_status()
         data = response.json()
     except (RequestException, ValueError) as exc:
         raise TDXError("台中停車場 OpenData 暫時無法取得。") from exc
+    if not isinstance(data, list):
+        raise TDXError("台中停車場 OpenData 回傳格式異常。")
 
     results = []
-    for item in data[:limit]:
+    for item in data:
+        total_car = _to_int(item.get("TotalCar"))
+        available_rgb = item.get("AvailableCarRGB")
         results.append(
             {
                 "name": item.get("Position", "未提供名稱"),
-                "available_spaces": f"即時剩餘數請以燈號參考：{item.get('AvailableCarRGB', '未提供')}",
-                "total_spaces": "未提供",
+                "available_spaces": f"燈號 {available_rgb or '未提供'}",
+                "total_spaces": total_car or "未提供",
                 "address": item.get("KeyWord", "未提供地址"),
-                "status_text": "資料更新中",
+                "status_text": _opendata_status(available_rgb),
                 "update_time": "",
+                "fare_description": "OpenData 尚未提供此欄位",
+                "open_time": "OpenData 尚未提供此欄位",
+                "source": "台中 OpenData",
             }
         )
     return results
 
 
-def search_parking(limit: int = 5) -> list[dict]:
+def _filter_lots(lots: list[dict], query: str) -> list[dict]:
+    if not query:
+        return lots
+    query_key = _canonical(query)
+    return [
+        lot
+        for lot in lots
+        if query_key in _canonical(f"{lot.get('name', '')} {lot.get('address', '')}")
+    ]
+
+
+def search_parking(keyword: str = "", limit: int = 6) -> list[dict]:
+    query = parse_parking_query(keyword)
     try:
-        return _load_tdx_parking(limit)
+        lots = _load_tdx_parking()
     except TDXError:
-        return _load_opendata_parking(limit)
+        lots = _load_opendata_parking()
+    return _filter_lots(lots, query)[:limit]
 
 
 def format_parking_text(parking_lots: list[dict]) -> str:

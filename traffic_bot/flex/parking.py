@@ -3,7 +3,7 @@ from __future__ import annotations
 from utils.time_format import display_time
 
 
-def parking_bubble(lots: list[dict], limit: int = 6) -> dict:
+def parking_bubble(lots: list[dict], query: str = "", limit: int = 6) -> dict:
     shown = lots[:limit]
     update_time = display_time(shown[0].get("update_time", "") if shown else "")
     return {
@@ -25,7 +25,7 @@ def parking_bubble(lots: list[dict], limit: int = 6) -> dict:
                 },
                 {
                     "type": "text",
-                    "text": f"更新於 {update_time}｜資料來源：TDX / 台中 OpenData",
+                    "text": f"更新於 {update_time}｜資料來源：{shown[0].get('source', 'TDX') if shown else 'TDX'}",
                     "size": "xs",
                     "color": "#DBEAFE",
                     "margin": "sm",
@@ -39,6 +39,16 @@ def parking_bubble(lots: list[dict], limit: int = 6) -> dict:
             "spacing": "md",
             "backgroundColor": "#F8FAFC",
             "contents": [_lot_card(lot) for lot in shown],
+        },
+        "footer": {
+            "type": "box",
+            "layout": "horizontal",
+            "spacing": "sm",
+            "contents": [
+                _button("重新查詢", f"{query}停車場" if query else "停車場"),
+                _button("附近停車", "停車"),
+                _button("主選單", "主選單"),
+            ],
         },
     }
 
@@ -104,5 +114,28 @@ def _lot_card(lot: dict) -> dict:
                 "color": "#64748B",
                 "wrap": True,
             },
+            {
+                "type": "text",
+                "text": f"收費：{lot.get('fare_description', 'TDX 尚未提供此欄位')}",
+                "size": "xs",
+                "color": "#64748B",
+                "wrap": True,
+            },
+            {
+                "type": "text",
+                "text": f"營業時間：{lot.get('open_time', 'TDX 尚未提供此欄位')}",
+                "size": "xs",
+                "color": "#64748B",
+                "wrap": True,
+            },
         ],
+    }
+
+
+def _button(label: str, text: str) -> dict:
+    return {
+        "type": "button",
+        "style": "secondary",
+        "height": "sm",
+        "action": {"type": "message", "label": label, "text": text},
     }

@@ -39,6 +39,16 @@ def youbike_bubble(query: str, stations: list[dict], limit: int = 6) -> dict:
             "backgroundColor": "#F8FAFC",
             "contents": [_station_card(station) for station in shown],
         },
+        "footer": {
+            "type": "box",
+            "layout": "horizontal",
+            "spacing": "sm",
+            "contents": [
+                _button("重新查詢", f"YouBike {query}"),
+                _button("其他站點", "YouBike 台中車站"),
+                _button("主選單", "主選單"),
+            ],
+        },
     }
 
 
@@ -79,12 +89,28 @@ def _station_card(station: dict) -> dict:
             },
             {
                 "type": "text",
+                "text": f"容量：{station.get('capacity', 'TDX 尚未提供此欄位')}",
+                "size": "xs",
+                "color": "#475569",
+                "wrap": True,
+            },
+            {
+                "type": "text",
                 "text": station.get("address") or "地址資料更新中",
                 "size": "xs",
                 "color": "#64748B",
                 "wrap": True,
             },
         ],
+    }
+
+
+def _button(label: str, text: str) -> dict:
+    return {
+        "type": "button",
+        "style": "secondary",
+        "height": "sm",
+        "action": {"type": "message", "label": label, "text": text},
     }
 
 

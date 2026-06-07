@@ -65,6 +65,22 @@ def unknown_input_bubble() -> dict:
     }
 
 
+def input_prompt_bubble(title: str, description: str, examples: list[str]) -> dict:
+    return {
+        "type": "bubble",
+        "size": "mega",
+        "header": _header(title, description),
+        "body": {
+            "type": "box",
+            "layout": "vertical",
+            "spacing": "md",
+            "backgroundColor": "#F8FAFC",
+            "contents": [_help_item("範例", example) for example in examples],
+        },
+        "footer": _footer("目前尚未開啟定位查詢，請先輸入地點或區域。"),
+    }
+
+
 def _header(title: str, subtitle: str) -> dict:
     return {
         "type": "box",

@@ -23,7 +23,7 @@ from linebot.v3.webhooks import MessageEvent, TextMessageContent
 from config import Config
 from flex.bus import bus_eta_bubble
 from flex.bike import youbike_bubble
-from flex.common import help_bubble, service_status_bubble, unknown_input_bubble
+from flex.common import help_bubble, input_prompt_bubble, service_status_bubble, unknown_input_bubble
 from flex.menu import main_menu_bubble
 from flex.parking import parking_bubble
 from flex.subscription import subscription_status_bubble
@@ -31,14 +31,14 @@ from repositories.subscription_repository import (
     SubscriptionRepository,
     SubscriptionStorageError,
 )
-from services.bike_service import format_youbike_text, search_youbike
+from services.bike_service import format_youbike_text, parse_youbike_query, search_youbike
 from services.bus_service import (
     format_bus_eta_text,
     get_bus_eta,
     parse_bus_destination,
     parse_bus_route,
 )
-from services.parking_service import format_parking_text, search_parking
+from services.parking_service import format_parking_text, parse_parking_query, search_parking
 from utils.line_message import flex_or_text
 
 
@@ -74,7 +74,7 @@ def test_reply():
     text = request.args.get("text", "主選單")
     messages = build_reply_messages(text, "debug-user")
     replies = [summarize_message(message) for message in messages]
-    return {"input": text, "replies": replies}
+    return {"input": text, "message_count": len(replies), "replies": replies}
 
 
 @app.post("/internal/push-daily")
@@ -151,6 +151,19 @@ def build_reply_messages(text: str, user_id: str | None = None) -> list:
     if text == "即時路況":
         return [TextMessage(text="即時路況功能準備中，之後會加入主要幹道壅塞提醒。")]
 
+    if text in ("公車", "查公車"):
+        return [
+            flex_or_text(
+                "請輸入公車路線",
+                lambda: input_prompt_bubble(
+                    "查公車",
+                    "請輸入公車路線，若知道方向也可以一起輸入。",
+                    ["300", "307", "300 往台中車站"],
+                ),
+                "請輸入公車路線，例如：300、307、300 往台中車站。",
+            )
+        ]
+
     if normalized.startswith("取消訂閱"):
         route = parse_bus_route(text)
         return build_unsubscribe_messages(user_id, route)
@@ -166,7 +179,7 @@ def build_reply_messages(text: str, user_id: str | None = None) -> list:
         return build_youbike_messages(text)
 
     if "停車場" in text or "停車" in text:
-        return build_parking_messages()
+        return build_parking_messages(text)
 
     route = parse_bus_route(text)
     if route:
@@ -237,6 +250,20 @@ def build_bus_eta_messages(route: str, destination: str = "") -> list:
 
 
 def build_youbike_messages(text: str) -> list:
+    query = parse_youbike_query(text)
+    if not query:
+        return [
+            flex_or_text(
+                "請輸入 YouBike 地點",
+                lambda: input_prompt_bubble(
+                    "找 YouBike",
+                    "目前尚未開啟定位查詢，請輸入站名、地標或區域。",
+                    ["YouBike 台中車站", "ubike 逢甲", "腳踏車 靜宜"],
+                ),
+                "目前尚未開啟定位查詢，請輸入地點，例如：YouBike 台中車站。",
+            )
+        ]
+
     try:
         stations = search_youbike(text)
     except Exception as exc:
@@ -250,15 +277,29 @@ def build_youbike_messages(text: str) -> list:
     return [
         flex_or_text(
             "YouBike 即時車位資訊",
-            lambda: youbike_bubble(text, stations),
+            lambda: youbike_bubble(query, stations),
             fallback_text,
         )
     ]
 
 
-def build_parking_messages() -> list:
+def build_parking_messages(text: str = "停車場") -> list:
+    query = parse_parking_query(text)
+    if text in ("停車", "查停車", "附近停車場"):
+        return [
+            flex_or_text(
+                "請輸入停車場地點",
+                lambda: input_prompt_bubble(
+                    "查停車場",
+                    "請輸入地點或區域；若只輸入「停車場」會顯示目前可用資料前幾筆。",
+                    ["台中車站停車場", "西屯停車場", "逢甲停車場"],
+                ),
+                "請輸入地點或區域，例如：台中車站停車場、西屯停車場。",
+            )
+        ]
+
     try:
-        lots = search_parking()
+        lots = search_parking(text)
     except Exception as exc:
         app.logger.warning("Parking lookup failed: %s", exc)
         return [TextMessage(text="目前停車場資料暫時無法取得，請稍後再試。")]
@@ -269,7 +310,7 @@ def build_parking_messages() -> list:
     return [
         flex_or_text(
             "台中停車場即時空位",
-            lambda: parking_bubble(lots),
+            lambda: parking_bubble(lots, query=query),
             format_parking_text(lots),
         )
     ]

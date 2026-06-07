@@ -6,8 +6,8 @@
 
 - 主選單 Flex Message
 - 公車即時到站查詢，支援自然語句如 `300`、`公車300`、`查詢300到站`、`幫我查 300 多久到`
-- YouBike 站點查詢，支援 `YouBike 台中車站`、`ubike台中車站`、`腳踏車 台中車站`
-- 停車場剩餘車位查詢
+- YouBike 站點查詢，支援 `YouBike 台中車站`、`ubike台中車站`、`腳踏車 台中車站`，並依站名與地址做模糊搜尋
+- 停車場剩餘車位查詢，支援 `停車場`、`西屯停車場`、`台中車站停車場` 等地點或區域查詢
 - 公車訂閱、取消訂閱、我的訂閱
 - 每日公車訂閱推播
 - 受保護的 internal daily push endpoint，可搭配 Render Cron Job
@@ -39,7 +39,7 @@ traffic_bot/
     └── test_app.py
 ```
 
-`app.py` 負責 Flask routes、LINE webhook 與訊息分派。TDX 查詢放在 `services/`，LINE Flex JSON 放在 `flex/`，訂閱資料存取集中在 `repositories/`。
+`app.py` 負責 Flask routes、LINE webhook 與訊息分派。TDX 查詢放在 `services/`，LINE Flex JSON 放在 `flex/`，訂閱資料存取集中在 `repositories/`。Flex Message 只使用 TDX 或台中 OpenData 實際回傳欄位；若資料來源未提供欄位，畫面會顯示 `TDX 尚未提供此欄位` 或對應 fallback，不會硬填假資料。
 
 ## 環境變數
 
@@ -148,8 +148,12 @@ curl -X POST https://你的-render-service.onrender.com/internal/push-daily \
 /test?text=YouBike台中車站
 /test?text=ubike台中車站
 /test?text=腳踏車台中車站
+/test?text=YouBike
+/test?text=附近 YouBike
 /test?text=停車場
 /test?text=查停車
+/test?text=西屯停車場
+/test?text=附近停車場
 /test?text=訂閱300
 /test?text=我的訂閱
 /test?text=取消訂閱300

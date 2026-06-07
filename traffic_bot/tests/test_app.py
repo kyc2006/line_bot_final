@@ -7,7 +7,9 @@ from unittest.mock import patch
 
 import app as app_module
 from repositories.subscription_repository import SubscriptionRepository
+from services.bike_service import parse_youbike_query
 from services.bus_service import parse_bus_route
+from services.parking_service import parse_parking_query
 
 
 SAMPLE_ARRIVALS = [
@@ -75,6 +77,36 @@ class BusRouteParserTest(unittest.TestCase):
         self.assertEqual(parse_bus_route("使用說明"), "")
 
 
+class PlaceQueryParserTest(unittest.TestCase):
+    def test_parse_youbike_query(self) -> None:
+        cases = {
+            "YouBike 台中車站": "台中車站",
+            "ubike逢甲": "逢甲",
+            "腳踏車 靜宜": "靜宜",
+            "找 YouBike 台中車站": "台中車站",
+            "附近 YouBike": "",
+            "YouBike": "",
+        }
+
+        for text, expected in cases.items():
+            with self.subTest(text=text):
+                self.assertEqual(parse_youbike_query(text), expected)
+
+    def test_parse_parking_query(self) -> None:
+        cases = {
+            "停車場": "",
+            "查停車": "",
+            "台中車站停車場": "台中車站",
+            "西屯停車場": "西屯",
+            "逢甲停車場": "逢甲",
+            "附近停車場": "",
+        }
+
+        for text, expected in cases.items():
+            with self.subTest(text=text):
+                self.assertEqual(parse_parking_query(text), expected)
+
+
 class TestEndpointTest(unittest.TestCase):
     def setUp(self) -> None:
         self.temp_dir = tempfile.TemporaryDirectory()
@@ -92,6 +124,7 @@ class TestEndpointTest(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         payload = response.get_json()
         self.assertIsNotNone(payload)
+        self.assertGreaterEqual(payload["message_count"], 1)
         return payload["replies"][0]
 
     def test_static_and_subscription_inputs(self) -> None:
@@ -100,6 +133,8 @@ class TestEndpointTest(unittest.TestCase):
             "hi": "flex",
             "使用說明": "flex",
             "服務狀態": "flex",
+            "YouBike": "flex",
+            "停車": "flex",
             "訂閱300": "flex",
             "我的訂閱": "flex",
             "取消訂閱300": "flex",
@@ -137,7 +172,7 @@ class TestEndpointTest(unittest.TestCase):
             self.assertEqual(self.get_reply("ubike台中車站")["type"], "flex")
             self.assertEqual(self.get_reply("腳踏車台中車站")["type"], "flex")
             self.assertEqual(self.get_reply("停車場")["type"], "flex")
-            self.assertEqual(self.get_reply("查停車")["type"], "flex")
+            self.assertEqual(self.get_reply("西屯停車場")["type"], "flex")
 
     def test_unknown_input_returns_flex_hint(self) -> None:
         reply = self.get_reply("@@@")
