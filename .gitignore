@@ -1,0 +1,9 @@
+.DS_Store
+.idea/
+.venv/
+__pycache__/
+*.py[cod]
+traffic_bot/.DS_Store
+traffic_bot/.idea/
+traffic_bot/.venv/
+traffic_bot/__pycache__/
