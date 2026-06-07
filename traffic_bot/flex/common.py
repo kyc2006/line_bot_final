@@ -146,19 +146,26 @@ def unknown_input_bubble() -> dict:
     return {
         "type": "bubble",
         "size": "mega",
-        "header": _header("想查什麼呢？", "可以直接輸入路線、站點或功能名稱。"),
+        "header": _header("我可以幫你查台中交通", "直接用聊天方式輸入也可以。"),
         "body": {
             "type": "box",
             "layout": "vertical",
             "spacing": "md",
             "backgroundColor": BACKGROUND,
             "contents": [
-                _help_item("公車", "300、查 300 到站、300 往靜宜大學"),
-                _help_item("YouBike", "YouBike 台中車站、腳踏車 台中車站"),
-                _help_item("停車", "停車場、查停車"),
+                _help_item("公車", "300多久到、幫我查300、300往靜宜大學"),
+                _help_item("YouBike", "台中車站附近 YouBike、逢甲哪裡可以借腳踏車"),
+                _help_item("停車", "西屯停車場、台中車站附近哪裡可以停車"),
             ],
         },
-        "footer": action_buttons([("重新輸入", "使用說明", None), ("主選單", "主選單", None)]),
+        "footer": action_buttons(
+            [
+                ("查公車", "查公車", "primary"),
+                ("找 YouBike", "找 YouBike", None),
+                ("查停車場", "查停車場", None),
+                ("主選單", "主選單", None),
+            ]
+        ),
     }
 
 

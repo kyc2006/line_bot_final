@@ -47,6 +47,7 @@ from services.bus_service import (
 )
 from services.parking_service import format_parking_text, parse_parking_query, search_parking
 from utils.line_message import flex_or_text
+from utils.nlu import UserIntent, parse_user_intent
 
 
 app = Flask(__name__)
@@ -79,9 +80,17 @@ def test_reply():
             abort(401)
 
     text = request.args.get("text", "主選單")
+    intent = parse_user_intent(text)
     messages = build_reply_messages(text, "debug-user")
     replies = [summarize_message(message) for message in messages]
-    return {"input": text, "message_count": len(replies), "replies": replies}
+    return {
+        "input": text,
+        "parsed_intent": intent.name,
+        "confidence": intent.confidence,
+        "extracted_entities": intent.entities,
+        "message_count": len(replies),
+        "replies": replies,
+    }
 
 
 @app.post("/internal/push-daily")
@@ -129,15 +138,12 @@ def handle_text_message(event: MessageEvent):
 
 
 def build_reply_messages(text: str, user_id: str | None = None) -> list:
-    normalized = text.lower().strip()
+    intent = parse_user_intent(text)
 
-    if text in ("主選單", "回主選單", "選單", "menu"):
+    if intent.name in ("main_menu", "greeting"):
         return build_main_menu_messages()
 
-    if normalized in ("hi", "hello", "嗨", "你好", "哈囉", "開始"):
-        return build_main_menu_messages()
-
-    if text in ("使用說明", "help"):
+    if intent.name == "help":
         return [
             flex_or_text(
                 "台中交通小幫手使用說明",
@@ -146,7 +152,7 @@ def build_reply_messages(text: str, user_id: str | None = None) -> list:
             )
         ]
 
-    if text in ("服務狀態", "資料來源") or normalized == "status":
+    if intent.name == "status":
         return [
             flex_or_text(
                 "台中交通小幫手服務狀態",
@@ -158,10 +164,10 @@ def build_reply_messages(text: str, user_id: str | None = None) -> list:
     if text == "即時路況":
         return [TextMessage(text="即時路況功能準備中，之後會加入主要幹道壅塞提醒。")]
 
-    if text in ("公車", "查公車", "重新整理") or normalized == "bus":
+    if intent.name == "bus_guide":
         return build_bus_prompt_messages()
 
-    if text == "熱門路線":
+    if intent.name == "popular_routes":
         return [
             flex_or_text(
                 "台中熱門公車路線",
@@ -170,29 +176,29 @@ def build_reply_messages(text: str, user_id: str | None = None) -> list:
             )
         ]
 
-    if normalized.startswith("取消訂閱"):
-        route = parse_bus_route(text)
-        return build_unsubscribe_messages(user_id, route)
+    if intent.name == "bus_unsubscribe":
+        return build_unsubscribe_messages(user_id, intent.route)
 
-    if normalized.startswith("訂閱"):
-        route = parse_bus_route(text)
-        return build_subscribe_messages(user_id, route)
+    if intent.name == "bus_subscribe":
+        return build_subscribe_messages(user_id, intent.route)
 
-    if text in ("我的訂閱", "訂閱清單"):
+    if intent.name == "subscription_list":
         return build_subscription_list_messages(user_id)
 
-    if is_youbike_query(text):
-        return build_youbike_messages(text)
+    if intent.name == "bike_guide":
+        return build_youbike_prompt_messages()
 
-    if text == "重新查詢":
-        return build_main_menu_messages()
+    if intent.name == "bike_search":
+        return build_youbike_messages(intent.query)
 
-    if "停車場" in text or "停車" in text or text == "換個區域" or normalized == "parking":
-        return build_parking_messages(text)
+    if intent.name == "parking_guide":
+        return build_parking_prompt_messages()
 
-    route = parse_bus_route(text)
-    if route:
-        return build_bus_eta_messages(route, parse_bus_destination(text))
+    if intent.name == "parking_search":
+        return build_parking_messages(intent.query)
+
+    if intent.name == "bus_search":
+        return build_bus_eta_messages(intent.route, intent.entities.get("destination", ""))
 
     return [
         flex_or_text(

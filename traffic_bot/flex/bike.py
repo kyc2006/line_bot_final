@@ -6,7 +6,10 @@ from utils.time_format import display_time
 
 def youbike_bubble(query: str, stations: list[dict], limit: int = 6) -> dict:
     shown = stations[:limit]
-    update_time = display_time(shown[0].get("update_time", "") if shown else "")
+    update_time = display_time(shown[0].get("update_time", "")) if shown and shown[0].get("update_time") else ""
+    subtitle = "資料來源：TDX"
+    if update_time:
+        subtitle = f"更新於 {update_time}｜{subtitle}"
     return {
         "type": "bubble",
         "size": "mega",
@@ -26,7 +29,7 @@ def youbike_bubble(query: str, stations: list[dict], limit: int = 6) -> dict:
                 },
                 {
                     "type": "text",
-                    "text": f"更新於 {update_time}｜資料來源：TDX",
+                    "text": subtitle,
                     "size": "xs",
                     "color": "#DBEAFE",
                     "margin": "sm",
@@ -61,15 +64,14 @@ def _station_card(station: dict) -> dict:
             "color": "#0F172A",
             "wrap": True,
         },
-        {
-            "type": "box",
-            "layout": "horizontal",
-            "contents": [
-                _metric("可借", str(station.get("available_rent", 0)), "#0F766E"),
-                _metric("可還", str(station.get("available_return", 0)), "#2563EB"),
-            ],
-        },
     ]
+    metrics = []
+    if station.get("available_rent") is not None:
+        metrics.append(_metric("可借", str(station["available_rent"]), "#0F766E"))
+    if station.get("available_return") is not None:
+        metrics.append(_metric("可還", str(station["available_return"]), "#2563EB"))
+    if metrics:
+        contents.append({"type": "box", "layout": "horizontal", "contents": metrics})
     for row in (
         info_row("狀態", status),
         info_row("容量", station.get("capacity")),

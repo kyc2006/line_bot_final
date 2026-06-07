@@ -37,7 +37,7 @@ def _parking_id(item: dict) -> str:
 
 def _parking_status(spaces: int | None) -> str:
     if spaces is None:
-        return "資料更新中"
+        return ""
     if spaces <= 0:
         return "已滿"
     if spaces <= 20:
@@ -50,8 +50,8 @@ def _opendata_status(rgb: str | None) -> str:
         "G": "尚有車位",
         "Y": "車位緊張",
         "R": "已滿",
-        "B": "資料更新中",
-    }.get(str(rgb or "").upper(), "資料更新中")
+        "B": "",
+    }.get(str(rgb or "").upper(), "")
 
 
 def _to_int(value) -> int | None:
@@ -61,6 +61,51 @@ def _to_int(value) -> int | None:
         return int(value)
     except (TypeError, ValueError):
         return None
+
+
+def _first_int(*values) -> int | None:
+    for value in values:
+        parsed = _to_int(value)
+        if parsed is not None:
+            return parsed
+    return None
+
+
+def _sum_available_details(details) -> int | None:
+    if not isinstance(details, list):
+        return None
+    total = 0
+    found = False
+    for detail in details:
+        if not isinstance(detail, dict):
+            continue
+        spaces = _first_int(
+            detail.get("AvailableSpaces"),
+            detail.get("AvailableCar"),
+            detail.get("AvailableCarCount"),
+            detail.get("AvailableSpace"),
+            detail.get("Vacancy"),
+        )
+        if spaces is not None:
+            total += spaces
+            found = True
+    return total if found else None
+
+
+def _available_spaces(item: dict) -> int | None:
+    return _first_int(
+        item.get("AvailableSpaces"),
+        item.get("AvailableCar"),
+        item.get("AvailableCarCount"),
+        item.get("AvailableSpace"),
+        item.get("AvailableParkingSpaces"),
+        item.get("SurplusSpace"),
+        item.get("LeftSpace"),
+        item.get("Vacancy"),
+        item.get("Vacancies"),
+        _sum_available_details(item.get("AvailableSpacesDetail")),
+        _sum_available_details(item.get("ParkingAvailabilities")),
+    )
 
 
 def _load_tdx_parking() -> list[dict]:
@@ -86,13 +131,17 @@ def _load_tdx_parking() -> list[dict]:
             or _text(lot.get("CarParkAddress"), "")
             or _text(item.get("Address"), "")
         )
-        spaces = _to_int(item.get("AvailableSpaces"))
-        if spaces is None:
-            spaces = _to_int(item.get("AvailableCar"))
-        total_spaces = (
-            _to_int(item.get("TotalSpaces"))
-            or _to_int(lot.get("TotalSpaces"))
-            or _to_int(lot.get("CarParkCapacity"))
+        spaces = _available_spaces(item)
+        total_spaces = _first_int(
+            item.get("TotalSpaces"),
+            item.get("TotalCar"),
+            item.get("TotalSpace"),
+            item.get("ParkingSpaces"),
+            lot.get("TotalSpaces"),
+            lot.get("TotalCar"),
+            lot.get("TotalSpace"),
+            lot.get("CarParkCapacity"),
+            lot.get("ParkingSpaces"),
         )
 
         results.append(
@@ -136,15 +185,29 @@ def _load_opendata_parking() -> list[dict]:
 
     results = []
     for item in data:
-        total_car = _to_int(item.get("TotalCar"))
+        available_spaces = _first_int(
+            item.get("AvailableCar"),
+            item.get("availableCar"),
+            item.get("AvailableSpaces"),
+            item.get("availableSpaces"),
+            item.get("SurplusSpace"),
+            item.get("LeftSpace"),
+            item.get("Vacancy"),
+        )
+        total_car = _first_int(
+            item.get("TotalCar"),
+            item.get("totalCar"),
+            item.get("TotalSpaces"),
+            item.get("totalSpaces"),
+        )
         available_rgb = item.get("AvailableCarRGB")
         results.append(
             {
                 "name": item.get("Position") or "停車場",
-                "available_spaces": None,
+                "available_spaces": available_spaces,
                 "total_spaces": total_car,
                 "address": item.get("KeyWord", ""),
-                "status_text": _opendata_status(available_rgb),
+                "status_text": _parking_status(available_spaces) or _opendata_status(available_rgb),
                 "update_time": "",
                 "fare_description": "",
                 "open_time": "",

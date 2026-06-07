@@ -26,6 +26,7 @@ BUS_KEYWORDS = (
     "幫我",
     "我要搭",
     "想搭",
+    "我想",
     "搭乘",
     "搭",
     "公車",
@@ -40,10 +41,14 @@ BUS_KEYWORDS = (
     "資訊",
     "預估",
     "時間",
+    "每天",
+    "提醒我",
+    "提醒",
+    "追蹤",
 )
 
 
-def _zh_tw(value: dict | None, fallback: str = "未提供") -> str:
+def _zh_tw(value: dict | None, fallback: str = "") -> str:
     if not isinstance(value, dict):
         return fallback
     return value.get("Zh_tw") or value.get("En") or fallback
@@ -51,7 +56,7 @@ def _zh_tw(value: dict | None, fallback: str = "未提供") -> str:
 
 def format_eta_status(seconds: int | None, stop_status: int | None) -> str:
     if seconds is None:
-        return STOP_STATUS.get(stop_status, "資料更新中")
+        return STOP_STATUS.get(stop_status, "")
     if seconds <= 60:
         return "即將進站"
     minutes = round(seconds / 60)

@@ -94,7 +94,7 @@ def bus_eta_carousel(route: str, arrivals: list[dict], limit: int = 6) -> dict:
 
 
 def _stop_card(item: dict) -> dict:
-    arrival_text = str(item.get("arrival_text") or "資料更新中")
+    arrival_text = str(item.get("arrival_text") or item.get("stop_status") or "暫無預估")
     contents = [
         {
             "type": "box",

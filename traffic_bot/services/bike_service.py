@@ -29,7 +29,7 @@ def _to_int(value) -> int | None:
 def parse_youbike_query(text: str) -> str:
     query = text.strip()
     query = re.sub(r"(?i)youbike|ubike", " ", query)
-    for keyword in ("腳踏車", "自行車", "公共自行車", "找", "查詢", "查", "站點"):
+    for keyword in ("腳踏車", "自行車", "公共自行車", "共享單車", "單車", "找", "查詢", "查", "站點"):
         query = query.replace(keyword, " ")
     query = re.sub(r"\s+", " ", query).strip(" ：:，,。")
     if query in ("附近", "附近的", "附近其他"):
@@ -50,7 +50,7 @@ def _service_status_label(status: int | None, rent: int | None, returns: int | N
         0: "停止營運",
         1: "正常營運",
         2: "暫停營運",
-    }.get(status, "資料更新中")
+    }.get(status, "")
     if base != "正常營運":
         return base
     if rent == 0:
@@ -87,8 +87,8 @@ def search_youbike(keyword: str, limit: int = 6) -> list[dict]:
         matches.append(
             {
                 "station_name": name,
-                "available_rent": rent if rent is not None else "資料更新中",
-                "available_return": returns if returns is not None else "資料更新中",
+                "available_rent": rent,
+                "available_return": returns,
                 "service_status": _to_int(status.get("ServiceStatus")),
                 "status_text": _service_status_label(_to_int(status.get("ServiceStatus")), rent, returns),
                 "address": address,
@@ -109,15 +109,13 @@ def format_youbike_text(keyword: str, stations: list[dict]) -> str:
 
     lines = [f"YouBike「{query}」查詢結果"]
     for index, station in enumerate(stations, start=1):
-        lines.extend(
-            [
-                "",
-                f"{index}. 站點名稱：{station['station_name']}",
-                f"可借車輛數：{station['available_rent']}",
-                f"可還車位數：{station['available_return']}",
-                f"狀態：{station.get('status_text', '資料更新中')}",
-            ]
-        )
+        lines.extend(["", f"{index}. 站點名稱：{station['station_name']}"])
+        if station.get("available_rent") is not None:
+            lines.append(f"可借車輛數：{station['available_rent']}")
+        if station.get("available_return") is not None:
+            lines.append(f"可還車位數：{station['available_return']}")
+        if station.get("status_text"):
+            lines.append(f"狀態：{station['status_text']}")
     return "\n".join(lines)
 
 

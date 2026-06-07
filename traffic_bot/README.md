@@ -38,13 +38,17 @@ traffic_bot/
 ├── repositories/
 │   └── subscription_repository.py
 ├── utils/
+│   ├── nlu.py
 │   ├── line_message.py
 │   └── time_format.py
 └── tests/
-    └── test_app.py
+    ├── test_app.py
+    ├── test_nlu.py
+    ├── test_parking_service.py
+    └── test_message_dispatcher.py
 ```
 
-`app.py` 負責 Flask routes、LINE webhook 與訊息分派。TDX 查詢放在 `services/`，LINE Flex JSON 放在 `flex/`，共用元件集中在 `flex/common.py`，訂閱資料存取集中在 `repositories/`。Flex Message 只使用 TDX 或台中 OpenData 實際回傳欄位；若資料來源未提供欄位，畫面會直接隱藏該 row，不會硬填假資料或顯示佔位文字。
+`app.py` 負責 Flask routes、LINE webhook 與訊息分派。自然語言理解集中在 `utils/nlu.py`，TDX 查詢放在 `services/`，LINE Flex JSON 放在 `flex/`，共用元件集中在 `flex/common.py`，訂閱資料存取集中在 `repositories/`。Flex Message 只使用 TDX 或台中 OpenData 實際回傳欄位；若資料來源未提供欄位，畫面會直接隱藏該 row，不會硬填假資料或顯示佔位文字。
 
 ## 環境變數
 
@@ -198,7 +202,13 @@ curl -X POST https://你的-render-service.onrender.com/internal/push-daily \
 
 ## /test 測試
 
-`/test` 會回傳訊息類型、alt text 與摘要：
+`/test` 會回傳自然語言解析結果、訊息類型、alt text 與摘要。回傳欄位包含：
+
+- `input`
+- `parsed_intent`
+- `confidence`
+- `extracted_entities`
+- `replies`
 
 ```text
 /test?text=主選單
@@ -231,6 +241,14 @@ curl -X POST https://你的-render-service.onrender.com/internal/push-daily \
 /test?text=我的訂閱
 /test?text=取消訂閱300
 /test?text=服務狀態
+/test?text=台中車站附近哪裡可以停車
+/test?text=逢甲附近有YouBike嗎
+/test?text=靜宜附近哪裡可以借腳踏車
+/test?text=幫我訂閱300
+/test?text=取消追蹤300
+/test?text=我追蹤了哪些公車
+/test?text=系統正常嗎
+/test?text=randomtext
 ```
 
 若設定 `TEST_TOKEN`，請帶上：
@@ -254,15 +272,45 @@ python -m unittest discover -s tests -v
 
 測試會 mock TDX 查詢，避免測試時消耗外部 API。
 
+## 自然語言理解
+
+Bot 使用 rule-based NLU，不依賴 OpenAI 或其他外部 AI API。流程會先正規化輸入，再依關鍵字、regex 與優先順序解析成 intent。
+
+支援 intent：
+
+- `main_menu`
+- `help`
+- `bus_search`
+- `bus_subscribe`
+- `bus_unsubscribe`
+- `subscription_list`
+- `bike_search`
+- `parking_search`
+- `status`
+- `greeting`
+- `unknown`
+
+支援自然語言範例：
+
+- 公車：`300多久到`、`幫我查300`、`公車300往靜宜大學`
+- 訂閱：`幫我訂閱300`、`取消追蹤300`、`我追蹤了哪些公車`
+- YouBike：`逢甲附近有YouBike嗎`、`靜宜附近哪裡可以借腳踏車`
+- 停車：`台中車站附近哪裡可以停車`、`市政府附近還有停車位嗎`
+- 狀態：`系統正常嗎`、`TDX正常嗎`
+
+若輸入太模糊，Bot 會回覆引導卡片，提供查公車、找 YouBike、查停車場與主選單按鈕。
+
 ## UI 與資料顯示原則
 
 - 主選單使用 5 頁 carousel：首頁總覽、公車查詢、YouBike 查詢、停車場查詢、訂閱與服務。
 - 使用說明使用 5 頁 carousel：如何查公車、如何查 YouBike、如何查停車場、如何訂閱公車、常見問題。
 - 功能入口會先顯示引導卡片；例如輸入 `查公車` 會提示輸入 `300`、`307` 或 `300 往台中車站`。
 - 按鈕採 message action，按下後會送出可被 Bot 辨識的文字。
-- 停車場若 TDX 提供剩餘車位數，會以 `剩餘 42 格` 作為主要資訊。
+- 停車場若 TDX 或 OpenData 提供剩餘車位數，會以 `剩餘 42 格` 作為主要資訊。
+- 停車場剩餘車位使用 `available_spaces is not None` 判斷；`0` 是有效資料，會顯示 `剩餘 0 格` 與 `已滿`。
+- 若有總車位，卡片會顯示 `總車位` 與使用率；若有地址、更新時間、收費或營業時間，才顯示對應 row。
 - 若資料來源只提供燈號而沒有剩餘格數，Bot 不會把燈號假裝成剩餘數量；畫面會改顯示總車位、地址與狀態等實際有的資料。
-- 缺失欄位不會顯示成 `未提供`、`None`、`N/A` 或 `OpenData 未提供資料`，而是直接隱藏該 row，讓卡片自動重新排版。
+- 缺失欄位不會顯示成 `資料更新中`、`未提供`、`None`、`N/A` 或 `OpenData 未提供資料`，而是直接隱藏該 row，讓卡片自動重新排版。
 - 查無資料會回傳查無資料卡片，提示使用者換個地點、重新輸入或回主選單。
 
 ## 按鈕 action 對應
