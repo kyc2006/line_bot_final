@@ -4,6 +4,7 @@ import time
 from typing import Any
 
 import requests
+from requests import RequestException
 
 from config import Config
 
@@ -25,21 +26,29 @@ class TDXClient:
         if self._access_token and now < self._expires_at - 60:
             return self._access_token
 
-        response = requests.post(
-            Config.TDX_AUTH_URL,
-            data={
-                "grant_type": "client_credentials",
-                "client_id": Config.TDX_CLIENT_ID,
-                "client_secret": Config.TDX_CLIENT_SECRET,
-            },
-            headers={"content-type": "application/x-www-form-urlencoded"},
-            timeout=Config.REQUEST_TIMEOUT,
-        )
+        try:
+            response = requests.post(
+                Config.TDX_AUTH_URL,
+                data={
+                    "grant_type": "client_credentials",
+                    "client_id": Config.TDX_CLIENT_ID,
+                    "client_secret": Config.TDX_CLIENT_SECRET,
+                },
+                headers={"content-type": "application/x-www-form-urlencoded"},
+                timeout=Config.REQUEST_TIMEOUT,
+            )
+        except RequestException as exc:
+            raise TDXError("TDX token 連線逾時或暫時無法連線。") from exc
+
         if response.status_code >= 400:
             raise TDXError(f"TDX token 取得失敗：HTTP {response.status_code}")
 
-        payload = response.json()
-        self._access_token = payload["access_token"]
+        try:
+            payload = response.json()
+            self._access_token = payload["access_token"]
+        except (ValueError, KeyError) as exc:
+            raise TDXError("TDX token 回傳格式異常。") from exc
+
         self._expires_at = now + int(payload.get("expires_in", 3600))
         return self._access_token
 
@@ -50,15 +59,22 @@ class TDXClient:
         if params:
             query.update(params)
 
-        response = requests.get(
-            url,
-            params=query,
-            headers={"authorization": f"Bearer {token}"},
-            timeout=Config.REQUEST_TIMEOUT,
-        )
+        try:
+            response = requests.get(
+                url,
+                params=query,
+                headers={"authorization": f"Bearer {token}"},
+                timeout=Config.REQUEST_TIMEOUT,
+            )
+        except RequestException as exc:
+            raise TDXError("TDX API 連線逾時或暫時無法連線。") from exc
+
         if response.status_code >= 400:
             raise TDXError(f"TDX API 查詢失敗：HTTP {response.status_code}")
-        return response.json()
+        try:
+            return response.json()
+        except ValueError as exc:
+            raise TDXError("TDX API 回傳格式異常。") from exc
 
 
 tdx_client = TDXClient()

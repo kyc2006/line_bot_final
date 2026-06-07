@@ -34,6 +34,14 @@ class Config:
     PUSH_TIMEZONE = os.getenv("PUSH_TIMEZONE", "Asia/Taipei")
     PUSH_HOUR = int(os.getenv("PUSH_HOUR", "8"))
     PUSH_MINUTE = int(os.getenv("PUSH_MINUTE", "0"))
+    ENABLE_DAILY_PUSH = os.getenv("ENABLE_DAILY_PUSH", "true").lower() in (
+        "1",
+        "true",
+        "yes",
+        "on",
+    )
+    INTERNAL_API_TOKEN = os.getenv("INTERNAL_API_TOKEN", "")
+    TEST_TOKEN = os.getenv("TEST_TOKEN", "")
 
     LINE_BOT_ENABLED = bool(LINE_CHANNEL_ACCESS_TOKEN and LINE_CHANNEL_SECRET)
     TDX_ENABLED = bool(TDX_CLIENT_ID and TDX_CLIENT_SECRET)

@@ -15,7 +15,12 @@ def _normalize_keyword(keyword: str) -> str:
         .replace("youbike", "")
         .replace("Ubike", "")
         .replace("ubike", "")
+        .replace("UBike", "")
+        .replace("腳踏車", "")
+        .replace("自行車", "")
+        .replace("找", "")
         .replace("查詢", "")
+        .replace("查", "")
         .strip()
     )
 
@@ -28,7 +33,15 @@ def _station_key(item: dict) -> str:
     return item.get("StationUID") or item.get("StationID") or ""
 
 
-def search_youbike(keyword: str, limit: int = 3) -> list[dict]:
+def _service_status_label(status: int | None) -> str:
+    return {
+        0: "停止營運",
+        1: "正常營運",
+        2: "暫停營運",
+    }.get(status, "資料更新中")
+
+
+def search_youbike(keyword: str, limit: int = 6) -> list[dict]:
     keyword = _normalize_keyword(keyword)
     if not keyword:
         return []
@@ -50,20 +63,16 @@ def search_youbike(keyword: str, limit: int = 3) -> list[dict]:
                 "available_rent": status.get("AvailableRentBikes", 0),
                 "available_return": status.get("AvailableReturnBikes", 0),
                 "service_status": status.get("ServiceStatus"),
+                "status_text": _service_status_label(status.get("ServiceStatus")),
+                "address": _zh_tw(station.get("StationAddress"), ""),
+                "update_time": status.get("UpdateTime") or status.get("SrcUpdateTime") or "",
             }
         )
 
     return matches[:limit]
 
 
-def reply_youbike(keyword: str) -> str:
-    try:
-        stations = search_youbike(keyword)
-    except TDXError as exc:
-        return f"YouBike 查詢暫時無法使用。\n原因：{exc}"
-    except Exception:
-        return "YouBike 查詢發生未預期錯誤，請稍後再試。"
-
+def format_youbike_text(keyword: str, stations: list[dict]) -> str:
     query = _normalize_keyword(keyword)
     if not stations:
         return f"查不到「{query or keyword}」附近的 YouBike 站點，請試試更短的站名關鍵字。"
@@ -76,6 +85,18 @@ def reply_youbike(keyword: str) -> str:
                 f"{index}. 站點名稱：{station['station_name']}",
                 f"可借車輛數：{station['available_rent']}",
                 f"可還車位數：{station['available_return']}",
+                f"狀態：{station.get('status_text', '資料更新中')}",
             ]
         )
     return "\n".join(lines)
+
+
+def reply_youbike(keyword: str) -> str:
+    try:
+        stations = search_youbike(keyword)
+    except TDXError:
+        return "目前 YouBike 資料暫時無法取得，請稍後再試。"
+    except Exception:
+        return "目前 YouBike 資料暫時無法取得，請稍後再試。"
+
+    return format_youbike_text(keyword, stations)

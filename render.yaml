@@ -17,6 +17,8 @@ services:
         value: "8"
       - key: PUSH_MINUTE
         value: "0"
+      - key: ENABLE_DAILY_PUSH
+        value: "true"
       - key: LINE_CHANNEL_ACCESS_TOKEN
         sync: false
       - key: LINE_CHANNEL_SECRET

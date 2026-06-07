@@ -3,6 +3,10 @@
 .venv/
 __pycache__/
 *.py[cod]
+.pytest_cache/
+instance/
+logs/
+data/*.json
 traffic_bot/.DS_Store
 traffic_bot/.idea/
 traffic_bot/.venv/

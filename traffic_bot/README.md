@@ -1,39 +1,70 @@
-# 台中交通小幫手 Line Bot
+# 台中交通小幫手 LINE Bot
 
-使用 Python 3.12、Flask、line-bot-sdk、requests、gunicorn 開發，可部署到 Render。
+台中交通小幫手是一個 Flask LINE Bot，串接 LINE Messaging API v3 與 TDX API，提供台中公車、YouBike、停車場與公車訂閱推播查詢。專案以 Render 部署為目標，保留輕量 Flask 架構，並把訊息呈現升級為正式產品感的 LINE Flex Message。
 
 ## 功能
 
-- 公車即時查詢：輸入 `300公車`
-- YouBike 查詢：輸入 `YouBike 台中車站`
-- 停車場查詢：輸入 `停車場`
-- Flex Message 主選單：輸入 `主選單`
-- 公車訂閱：輸入 `訂閱 300`
-- 取消訂閱：輸入 `取消訂閱 300`
-- 查看訂閱：輸入 `我的訂閱`
+- 主選單 Flex Message
+- 公車即時到站查詢，支援自然語句如 `300`、`公車300`、`查詢300到站`、`幫我查 300 多久到`
+- YouBike 站點查詢，支援 `YouBike 台中車站`、`ubike台中車站`、`腳踏車 台中車站`
+- 停車場剩餘車位查詢
+- 公車訂閱、取消訂閱、我的訂閱
+- 每日公車訂閱推播
+- 受保護的 internal daily push endpoint，可搭配 Render Cron Job
+- `/test` 測試路由，可檢查訊息類型、alt text 與摘要
 
-## 專案架構
+## 技術架構
 
 ```text
 traffic_bot/
 ├── app.py
 ├── config.py
 ├── services/
-│   ├── __init__.py
 │   ├── tdx_client.py
 │   ├── bus_service.py
 │   ├── bike_service.py
 │   └── parking_service.py
 ├── flex/
-│   ├── __init__.py
-│   └── menu.py
-├── data/
-├── requirements.txt
-├── Procfile
-├── runtime.txt
-├── .env.example
-└── README.md
+│   ├── menu.py
+│   ├── bus.py
+│   ├── bike.py
+│   ├── parking.py
+│   └── subscription.py
+├── repositories/
+│   └── subscription_repository.py
+├── utils/
+│   ├── line_message.py
+│   └── time_format.py
+└── tests/
+    └── test_app.py
 ```
+
+`app.py` 負責 Flask routes、LINE webhook 與訊息分派。TDX 查詢放在 `services/`，LINE Flex JSON 放在 `flex/`，訂閱資料存取集中在 `repositories/`。
+
+## 環境變數
+
+請勿把任何真實 key 寫入程式碼或 commit 到 GitHub。Render 環境變數或本機 `.env` 需設定：
+
+```env
+LINE_CHANNEL_ACCESS_TOKEN=your_line_channel_access_token
+LINE_CHANNEL_SECRET=your_line_channel_secret
+TDX_CLIENT_ID=your_tdx_client_id
+TDX_CLIENT_SECRET=your_tdx_client_secret
+PUSH_TIMEZONE=Asia/Taipei
+PUSH_HOUR=8
+PUSH_MINUTE=0
+ENABLE_DAILY_PUSH=true
+INTERNAL_API_TOKEN=
+TEST_TOKEN=
+```
+
+說明：
+
+- `LINE_CHANNEL_ACCESS_TOKEN`、`LINE_CHANNEL_SECRET`：LINE Developers 後台取得。
+- `TDX_CLIENT_ID`、`TDX_CLIENT_SECRET`：TDX 會員中心取得。
+- `ENABLE_DAILY_PUSH`：是否在 Flask web process 內啟動每日推播 thread。預設 `true`，保留既有部署行為。
+- `INTERNAL_API_TOKEN`：保護 `/internal/push-daily` 的 token。若要使用 Render Cron Job，請設定此值。
+- `TEST_TOKEN`：保護 `/test` 的 token。未設定時 `/test` 維持開放，方便既有測試流程。
 
 ## 本機執行
 
@@ -43,100 +74,113 @@ python3.12 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 cp .env.example .env
-```
-
-編輯 `.env`：
-
-```env
-LINE_CHANNEL_ACCESS_TOKEN=你的_LINE_Channel_Access_Token
-LINE_CHANNEL_SECRET=你的_LINE_Channel_Secret
-TDX_CLIENT_ID=你的_TDX_Client_Id
-TDX_CLIENT_SECRET=你的_TDX_Client_Secret
-PUSH_TIMEZONE=Asia/Taipei
-PUSH_HOUR=8
-PUSH_MINUTE=0
-```
-
-啟動：
-
-```bash
 python app.py
 ```
 
-本機預設網址：
+預設網址：
 
 ```text
 http://127.0.0.1:5050/
 ```
 
-Webhook URL：
+## LINE Webhook
+
+部署完成後，請到 LINE Developers 後台設定：
 
 ```text
 https://你的網域/callback
 ```
 
-## Render 部署步驟
+啟用 `Use webhook`，並關閉不需要的 Auto-reply，避免官方自動回覆與 Bot 回覆重疊。
 
-### 方法一：使用 Blueprint
+## Render 部署
 
-1. 將 `traffic_bot` 推到 GitHub。
-2. 到 Render 建立 `New Blueprint Instance`。
-3. 選擇 GitHub repository。
-4. Render 會讀取 `render.yaml` 並建立 Web Service。
-5. 在 Environment Variables 補上以下四個 Secret：
+此專案保留 Render Blueprint 與手動部署流程。
 
-```text
-LINE_CHANNEL_ACCESS_TOKEN
-LINE_CHANNEL_SECRET
-TDX_CLIENT_ID
-TDX_CLIENT_SECRET
-```
-
-### 方法二：手動建立 Web Service
-
-1. 將 `traffic_bot` 推到 GitHub。
-2. 到 Render 建立 `New Web Service`。
-3. 選擇 GitHub repository。
-4. Root Directory 設為 `traffic_bot`。
-5. Runtime 選 Python。
-6. Build Command：
+Blueprint 使用根目錄的 `render.yaml`。手動建立 Web Service 時：
 
 ```bash
-pip install -r requirements.txt
+Build Command: pip install -r requirements.txt
+Start Command: gunicorn app:app --workers 1 --threads 2 --timeout 120
+Root Directory: traffic_bot
 ```
 
-7. Start Command：
+注意事項：
 
-```bash
-gunicorn app:app --workers 1 --threads 2 --timeout 120
-```
+- Render Free web service 會因閒置而休眠；休眠期間 web process 內的 daily push thread 不會執行。
+- 目前訂閱資料仍使用 JSON 檔案保存，repository 已加入 lock、格式檢查與 atomic write，但 Render 本機檔案系統不適合長期保存資料。正式營運建議改用 PostgreSQL。
+- 若改用 Render Cron Job 觸發推播，建議設定 `ENABLE_DAILY_PUSH=false`，再由 Cron 呼叫 `/internal/push-daily`。
 
-8. 在 Render Environment Variables 設定：
+## 每日推播
 
-```text
-LINE_CHANNEL_ACCESS_TOKEN
-LINE_CHANNEL_SECRET
-TDX_CLIENT_ID
-TDX_CLIENT_SECRET
+預設會依下列變數在 Flask web process 內啟動每日推播 thread：
+
+```env
+ENABLE_DAILY_PUSH=true
 PUSH_TIMEZONE=Asia/Taipei
 PUSH_HOUR=8
 PUSH_MINUTE=0
 ```
 
-9. 部署完成後，到 LINE Developers 後台設定 Webhook URL：
+更穩定的正式做法是使用 Render Cron Job 或外部排程呼叫：
 
-```text
-https://你的-render-service.onrender.com/callback
+```bash
+curl -X POST https://你的-render-service.onrender.com/internal/push-daily \
+  -H "Authorization: Bearer $INTERNAL_API_TOKEN"
 ```
 
-10. 啟用 `Use webhook`，並關閉不需要的 Auto-reply。
+若使用 Cron Job，請把 web service 的 `ENABLE_DAILY_PUSH` 設成 `false`，避免重複推播。
 
-## API 說明
+## /test 測試
 
-- 公車：TDX `v2/Bus/EstimatedTimeOfArrival/City/Taichung/{RouteName}`
-- YouBike：TDX `v2/Bike/Availability/City/Taichung`
-- 停車場：優先使用 TDX `v1/Parking/OffStreet/ParkingAvailability/City/Taichung`，若未設定 TDX 金鑰則 fallback 至台中市路外剩餘車位 OpenData。
+`/test` 會回傳訊息類型、alt text 與摘要：
 
-## 訂閱推播注意事項
+```text
+/test?text=主選單
+/test?text=使用說明
+/test?text=hi
+/test?text=300
+/test?text=300公車
+/test?text=公車300
+/test?text=查300
+/test?text=查詢300到站
+/test?text=300多久到
+/test?text=YouBike台中車站
+/test?text=ubike台中車站
+/test?text=腳踏車台中車站
+/test?text=停車場
+/test?text=查停車
+/test?text=訂閱300
+/test?text=我的訂閱
+/test?text=取消訂閱300
+/test?text=服務狀態
+```
 
-訂閱資料會存放於 `data/subscriptions.json`。Render 免費方案可能會休眠，休眠期間無法準時推播；正式環境建議使用付費 Web Service 或外部排程服務固定喚醒。
+若設定 `TEST_TOKEN`，請帶上：
+
+```text
+/test?text=300&token=your_test_token
+```
+
+或使用 header：
+
+```text
+X-Test-Token: your_test_token
+```
+
+## 測試
+
+```bash
+cd traffic_bot
+python -m unittest discover -s tests -v
+```
+
+測試會 mock TDX 查詢，避免測試時消耗外部 API。
+
+## 未來可擴充
+
+- 將訂閱資料從 JSON repository 換成 PostgreSQL repository。
+- 將每日推播完全改由 Render Cron Job 或 background worker 負責。
+- 加入使用者常用站牌、常用停車區域與地理位置查詢。
+- 加入 TDX API 快取，降低查詢延遲與 API 壓力。
+- 加入觀測與告警，例如錯誤率、TDX timeout、推播成功率。

@@ -5,7 +5,7 @@ def main_menu_bubble() -> dict:
         "header": {
             "type": "box",
             "layout": "vertical",
-            "backgroundColor": "#0F766E",
+            "backgroundColor": "#1E3A5F",
             "paddingAll": "20px",
             "contents": [
                 {
@@ -17,10 +17,11 @@ def main_menu_bubble() -> dict:
                 },
                 {
                     "type": "text",
-                    "text": "公車、YouBike、停車資訊快速查",
+                    "text": "即時掌握公車、YouBike 與停車資訊",
                     "size": "sm",
-                    "color": "#CCFBF1",
+                    "color": "#DBEAFE",
                     "margin": "md",
+                    "wrap": True,
                 },
             ],
         },
@@ -29,20 +30,28 @@ def main_menu_bubble() -> dict:
             "layout": "vertical",
             "spacing": "md",
             "contents": [
-                _menu_button("公車查詢", "300公車", "#14B8A6"),
-                _menu_button("YouBike查詢", "YouBike 台中車站", "#0EA5E9"),
-                _menu_button("停車場查詢", "停車場", "#F97316"),
-                _menu_button("即時路況", "即時路況", "#64748B"),
+                _menu_button("查公車", "300", "#2563EB"),
+                _menu_button("找 YouBike", "YouBike 台中車站", "#0F766E"),
+                _menu_button("查停車場", "停車場", "#B45309"),
+                _menu_button("我的訂閱", "我的訂閱", "#475569"),
                 _menu_button("使用說明", "使用說明", "#334155"),
             ],
         },
         "footer": {
             "type": "box",
             "layout": "vertical",
+            "spacing": "xs",
             "contents": [
                 {
                     "type": "text",
-                    "text": "也可輸入：訂閱 300、取消訂閱 300、我的訂閱",
+                    "text": "可直接輸入：查 300 到站、訂閱 300、取消訂閱 300",
+                    "size": "xs",
+                    "color": "#64748B",
+                    "wrap": True,
+                },
+                {
+                    "type": "text",
+                    "text": "資料來源：TDX、台中市開放資料",
                     "size": "xs",
                     "color": "#64748B",
                     "wrap": True,
