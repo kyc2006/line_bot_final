@@ -179,11 +179,24 @@ def _generate_with_swift(image_path: Path) -> None:
             let col = index % 3
             let row = index / 3
             let cellX = CGFloat(col) * 833.333
-            let contentTop = row == 0 ? 122.0 : 965.0
-            let iconX = cellX + 92.0
-            let titleY = contentTop + 238.0
+            let cellTop: CGFloat = row == 0 ? 0.0 : 843.0
+            let contentTop = row == 0 ? 88.0 : 931.0
+            let iconX = cellX + 88.0
+            let titleY = contentTop + 278.0
             let accent = color(item.accent)
 
+            color(item.accent, alpha: 0.22).setFill()
+            NSRect(x: cellX + 88.0, y: cellTop + 58.0, width: 178.0, height: 16.0).fill()
+            color(item.accent, alpha: 0.055).setFill()
+            NSBezierPath(ovalIn: NSRect(x: cellX + 540.0, y: cellTop + 72.0, width: 235.0, height: 235.0)).fill()
+            NSBezierPath(ovalIn: NSRect(x: cellX + 650.0, y: cellTop + 578.0, width: 58.0, height: 58.0)).fill()
+
+            NSGraphicsContext.saveGraphicsState()
+            let iconTransform = NSAffineTransform()
+            iconTransform.translateX(by: iconX, yBy: contentTop)
+            iconTransform.scale(by: 1.18)
+            iconTransform.translateX(by: -iconX, yBy: -contentTop)
+            iconTransform.concat()
             switch item.icon {
             case "bus":
                 drawBusIcon(x: iconX, y: contentTop, accent: accent)
@@ -196,11 +209,12 @@ def _generate_with_swift(image_path: Path) -> None:
             default:
                 drawLetterIcon(item.icon, x: iconX, y: contentTop, accent: accent)
             }
+            NSGraphicsContext.restoreGraphicsState()
 
-            drawText(item.title, x: cellX + 92.0, y: titleY, width: 665, size: 118, weight: .bold, fill: color(0x111827))
-            drawText(item.subtitle, x: cellX + 94.0, y: titleY + 126.0, width: 600, size: 56, weight: .bold, fill: color(0x667085))
+            drawText(item.title, x: cellX + 88.0, y: titleY, width: 690, size: 132, weight: .bold, fill: color(0x111827))
+            drawText(item.subtitle, x: cellX + 90.0, y: titleY + 140.0, width: 620, size: 62, weight: .bold, fill: color(0x667085))
             color(item.accent).setFill()
-            NSRect(x: cellX + 94.0, y: titleY + 222.0, width: 132, height: 14).fill()
+            NSRect(x: cellX + 90.0, y: titleY + 250.0, width: 154, height: 16).fill()
         }
 
         image.unlockFocus()
@@ -262,8 +276,8 @@ def _generate_with_pillow(image_path: Path) -> None:
     height = RICH_MENU_SIZE["height"]
     image = Image.new("RGB", (width, height), "#FFFFFF")
     draw = ImageDraw.Draw(image)
-    label_font = _font(ImageFont, 118)
-    subtitle_font = _font(ImageFont, 56)
+    label_font = _font(ImageFont, 132)
+    subtitle_font = _font(ImageFont, 62)
 
     draw.rectangle([(0, 843), (width, height)], fill="#F8FAFC")
     for x in (833, 1667):
@@ -282,11 +296,15 @@ def _generate_with_pillow(image_path: Path) -> None:
         col = index % 3
         row = index // 3
         cell_x = int(col * 833.333)
-        content_top = 122 if row == 0 else 965
-        draw.rounded_rectangle([(cell_x + 92, content_top), (cell_x + 242, content_top + 150)], radius=36, fill=accent)
-        draw.text((cell_x + 92, content_top + 238), title, fill="#111827", font=label_font)
-        draw.text((cell_x + 94, content_top + 364), subtitle, fill="#667085", font=subtitle_font)
-        draw.rectangle([(cell_x + 94, content_top + 460), (cell_x + 226, content_top + 474)], fill=accent)
+        cell_top = 0 if row == 0 else 843
+        content_top = 88 if row == 0 else 931
+        draw.rectangle([(cell_x + 88, cell_top + 58), (cell_x + 266, cell_top + 74)], fill=accent)
+        draw.ellipse([(cell_x + 540, cell_top + 72), (cell_x + 775, cell_top + 307)], fill=_hex_with_alpha(accent, "#FFFFFF", 0.055))
+        draw.ellipse([(cell_x + 650, cell_top + 578), (cell_x + 708, cell_top + 636)], fill=_hex_with_alpha(accent, "#FFFFFF", 0.055))
+        draw.rounded_rectangle([(cell_x + 88, content_top), (cell_x + 265, content_top + 177)], radius=42, fill=accent)
+        draw.text((cell_x + 88, content_top + 278), title, fill="#111827", font=label_font)
+        draw.text((cell_x + 90, content_top + 418), subtitle, fill="#667085", font=subtitle_font)
+        draw.rectangle([(cell_x + 90, content_top + 528), (cell_x + 244, content_top + 544)], fill=accent)
 
     image.save(image_path, format="PNG", optimize=True)
 
@@ -298,6 +316,13 @@ def _font(image_font, size: int):
         except Exception:
             pass
     return image_font.load_default()
+
+
+def _hex_with_alpha(foreground: str, background: str, alpha: float) -> str:
+    fg = tuple(int(foreground[index:index + 2], 16) for index in (1, 3, 5))
+    bg = tuple(int(background[index:index + 2], 16) for index in (1, 3, 5))
+    mixed = tuple(round(fg_value * alpha + bg_value * (1 - alpha)) for fg_value, bg_value in zip(fg, bg))
+    return "#" + "".join(f"{value:02X}" for value in mixed)
 
 
 def _generate_plain_png(image_path: Path) -> None:
@@ -313,7 +338,8 @@ def _generate_plain_png(image_path: Path) -> None:
             cell_col = min(2, x // 833)
             cell_row = 0 if y < 843 else 1
             cell_x = int(cell_col * 833.333)
-            content_top = 122 if cell_row == 0 else 965
+            cell_top = 0 if cell_row == 0 else 843
+            content_top = 88 if cell_row == 0 else 931
             accents = [
                 (37, 99, 235),
                 (15, 118, 110),
@@ -323,9 +349,11 @@ def _generate_plain_png(image_path: Path) -> None:
                 (71, 85, 105),
             ]
             accent = accents[cell_row * 3 + cell_col]
-            if cell_x + 92 <= x < cell_x + 242 and content_top <= y < content_top + 150:
+            if cell_x + 88 <= x < cell_x + 266 and content_top <= y < content_top + 177:
                 color = accent
-            if cell_x + 94 <= x < cell_x + 226 and content_top + 460 <= y < content_top + 474:
+            if cell_x + 88 <= x < cell_x + 266 and cell_top + 58 <= y < cell_top + 74:
+                color = tuple(round(value * 0.22 + 255 * 0.78) for value in accent)
+            if cell_x + 90 <= x < cell_x + 244 and content_top + 528 <= y < content_top + 544:
                 color = accent
             row.extend(color)
         rows.append(b"\x00" + bytes(row))
