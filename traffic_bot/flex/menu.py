@@ -7,10 +7,46 @@ def main_menu_carousel() -> dict:
         "type": "carousel",
         "contents": [
             _home_page(),
-            _feature_page("查公車", "輸入路線即可查即時到站。", ["300", "307", "300 往台中車站"], "公車"),
-            _feature_page("找 YouBike", "輸入站名、地標或區域。", ["YouBike 台中車站", "ubike 逢甲"], "YouBike"),
-            _feature_page("查停車場", "輸入地點或區域查停車資訊。", ["停車場", "西屯停車場"], "停車"),
-            _feature_page("訂閱與狀態", "管理推播與查看資料來源狀態。", ["我的訂閱", "服務狀態"], "我的訂閱"),
+            _feature_page(
+                "公車查詢",
+                "輸入路線即可查即時到站。",
+                ["300", "300公車", "公車300", "300多久到"],
+                [
+                    ("開始查公車", "查公車", "#2563EB"),
+                    ("熱門路線", "熱門路線", "#0F766E"),
+                    ("回主選單", "主選單", "#475569"),
+                ],
+            ),
+            _feature_page(
+                "YouBike 查詢",
+                "輸入站名、地標或區域。",
+                ["YouBike 台中車站", "ubike 逢甲"],
+                [
+                    ("開始查 YouBike", "找 YouBike", "#0F766E"),
+                    ("換個地點", "換個地點", "#2563EB"),
+                    ("回主選單", "主選單", "#475569"),
+                ],
+            ),
+            _feature_page(
+                "停車場查詢",
+                "輸入地點或區域查剩餘車位。",
+                ["西屯停車場", "台中車站停車場"],
+                [
+                    ("開始查停車場", "查停車場", "#B45309"),
+                    ("換個區域", "換個區域", "#2563EB"),
+                    ("回主選單", "主選單", "#475569"),
+                ],
+            ),
+            _feature_page(
+                "訂閱與服務",
+                "管理推播與查看資料來源狀態。",
+                ["我的訂閱", "服務狀態", "使用說明"],
+                [
+                    ("我的訂閱", "我的訂閱", "#2563EB"),
+                    ("服務狀態", "服務狀態", "#0F766E"),
+                    ("使用說明", "使用說明", "#475569"),
+                ],
+            ),
         ],
     }
 
@@ -50,9 +86,6 @@ def _home_page() -> dict:
                 _menu_button("查公車", "查公車", "#2563EB"),
                 _menu_button("找 YouBike", "找 YouBike", "#0F766E"),
                 _menu_button("查停車場", "查停車場", "#B45309"),
-                _menu_button("我的訂閱", "我的訂閱", "#475569"),
-                _menu_button("服務狀態", "服務狀態", "#475569"),
-                _menu_button("使用說明", "使用說明", "#334155"),
             ],
         },
         "footer": {
@@ -79,7 +112,12 @@ def _home_page() -> dict:
     }
 
 
-def _feature_page(title: str, subtitle: str, examples: list[str], primary_text: str) -> dict:
+def _feature_page(
+    title: str,
+    subtitle: str,
+    examples: list[str],
+    buttons: list[tuple[str, str, str]],
+) -> dict:
     return {
         "type": "bubble",
         "size": "mega",
@@ -109,8 +147,7 @@ def _feature_page(title: str, subtitle: str, examples: list[str], primary_text: 
                         {"type": "text", "text": "、".join(examples), "weight": "bold", "size": "md", "color": "#0F172A", "wrap": True},
                     ],
                 },
-                _menu_button("開始查詢", primary_text, "#2563EB"),
-                _menu_button("主選單", "主選單", "#475569"),
+                *[_menu_button(label, text, color) for label, text, color in buttons],
             ],
         },
         "footer": {

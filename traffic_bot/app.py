@@ -27,6 +27,7 @@ from flex.common import (
     empty_state_bubble,
     help_bubble,
     input_prompt_bubble,
+    popular_routes_bubble,
     service_status_bubble,
     unknown_input_bubble,
 )
@@ -160,6 +161,15 @@ def build_reply_messages(text: str, user_id: str | None = None) -> list:
     if text in ("公車", "查公車", "重新整理") or normalized == "bus":
         return build_bus_prompt_messages()
 
+    if text == "熱門路線":
+        return [
+            flex_or_text(
+                "台中熱門公車路線",
+                popular_routes_bubble,
+                "熱門公車路線：300、301、302、307、310、323。",
+            )
+        ]
+
     if normalized.startswith("取消訂閱"):
         route = parse_bus_route(text)
         return build_unsubscribe_messages(user_id, route)
@@ -173,6 +183,9 @@ def build_reply_messages(text: str, user_id: str | None = None) -> list:
 
     if is_youbike_query(text):
         return build_youbike_messages(text)
+
+    if text == "重新查詢":
+        return build_main_menu_messages()
 
     if "停車場" in text or "停車" in text or text == "換個區域" or normalized == "parking":
         return build_parking_messages(text)
@@ -208,6 +221,7 @@ def build_bus_prompt_messages() -> list:
                 "查公車",
                 "請輸入公車路線，若知道方向也可以一起輸入。",
                 ["300", "307", "300 往台中車站"],
+                [("熱門路線", "熱門路線", "primary"), ("主選單", "主選單", None)],
             ),
             "請輸入公車路線，例如：300、307、300 往台中車站。",
         )
@@ -222,6 +236,7 @@ def build_youbike_prompt_messages() -> list:
                 "找 YouBike",
                 "目前尚未開啟定位查詢，請輸入站名、地標或區域。",
                 ["YouBike 台中車站", "ubike 逢甲", "腳踏車 靜宜"],
+                [("換個地點", "換個地點", "primary"), ("主選單", "主選單", None)],
             ),
             "目前尚未開啟定位查詢，請輸入地點，例如：YouBike 台中車站。",
         )
@@ -236,6 +251,7 @@ def build_parking_prompt_messages() -> list:
                 "查停車場",
                 "請輸入地點或區域；若只輸入「停車場」會顯示目前可用資料前幾筆。",
                 ["台中車站停車場", "西屯停車場", "逢甲停車場"],
+                [("換個區域", "換個區域", "primary"), ("主選單", "主選單", None)],
             ),
             "請輸入地點或區域，例如：台中車站停車場、西屯停車場。",
         )
@@ -323,7 +339,7 @@ def build_youbike_messages(text: str) -> list:
 
 def build_parking_messages(text: str = "停車場") -> list:
     query = parse_parking_query(text)
-    if text in ("停車", "查停車", "查停車場", "附近停車場", "換個區域") or text.lower() == "parking":
+    if text in ("停車", "停車場", "查停車", "查停車場", "附近停車場", "換個區域") or text.lower() == "parking":
         return build_parking_prompt_messages()
 
     try:

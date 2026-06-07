@@ -43,7 +43,7 @@ def youbike_bubble(query: str, stations: list[dict], limit: int = 6) -> dict:
         "footer": action_buttons(
             [
                 ("重新查詢", f"YouBike {query}", "primary"),
-                ("換個地點", "YouBike", None),
+                ("換個地點", "換個地點", None),
                 ("主選單", "主選單", None),
             ]
         ),

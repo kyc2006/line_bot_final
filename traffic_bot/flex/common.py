@@ -162,7 +162,12 @@ def unknown_input_bubble() -> dict:
     }
 
 
-def input_prompt_bubble(title: str, description: str, examples: list[str]) -> dict:
+def input_prompt_bubble(
+    title: str,
+    description: str,
+    examples: list[str],
+    buttons: list[tuple[str, str, str | None]] | None = None,
+) -> dict:
     return {
         "type": "bubble",
         "size": "mega",
@@ -174,7 +179,35 @@ def input_prompt_bubble(title: str, description: str, examples: list[str]) -> di
             "backgroundColor": BACKGROUND,
             "contents": [_help_item("範例", example) for example in examples],
         },
-        "footer": action_buttons([("使用說明", "使用說明", None), ("主選單", "主選單", None)]),
+        "footer": action_buttons(
+            buttons or [("使用說明", "使用說明", None), ("主選單", "主選單", None)]
+        ),
+    }
+
+
+def popular_routes_bubble() -> dict:
+    return {
+        "type": "bubble",
+        "size": "mega",
+        "header": _header("熱門公車路線", "點選路線後會直接查詢即時到站。"),
+        "body": {
+            "type": "box",
+            "layout": "vertical",
+            "spacing": "md",
+            "backgroundColor": BACKGROUND,
+            "contents": [
+                _help_item("市區幹線", "300、301、302"),
+                _help_item("常用路線", "307、310、323"),
+                _help_item("也可以輸入方向", "例如：300 往台中車站"),
+            ],
+        },
+        "footer": action_buttons(
+            [
+                ("300", "300", "primary"),
+                ("307", "307", None),
+                ("主選單", "主選單", None),
+            ]
+        ),
     }
 
 

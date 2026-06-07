@@ -7,7 +7,7 @@
 - 主選單 Flex Message
 - 公車即時到站查詢，支援自然語句如 `300`、`公車300`、`查詢300到站`、`幫我查 300 多久到`
 - YouBike 站點查詢，支援 `YouBike 台中車站`、`ubike台中車站`、`腳踏車 台中車站`，並依站名與地址做模糊搜尋
-- 停車場剩餘車位查詢，支援 `停車場`、`西屯停車場`、`台中車站停車場` 等地點或區域查詢
+- 停車場剩餘車位查詢，支援 `西屯停車場`、`台中車站停車場` 等地點或區域查詢；輸入 `查停車場` 會先顯示引導卡片
 - 公車訂閱、取消訂閱、我的訂閱
 - 每日公車訂閱推播
 - 受保護的 internal daily push endpoint，可搭配 Render Cron Job
@@ -26,10 +26,15 @@ traffic_bot/
 │   └── parking_service.py
 ├── flex/
 │   ├── menu.py
+│   ├── common.py
 │   ├── bus.py
 │   ├── bike.py
 │   ├── parking.py
 │   └── subscription.py
+├── scripts/
+│   └── setup_rich_menu.py
+├── assets/
+│   └── rich_menu.png
 ├── repositories/
 │   └── subscription_repository.py
 ├── utils/
@@ -39,7 +44,7 @@ traffic_bot/
     └── test_app.py
 ```
 
-`app.py` 負責 Flask routes、LINE webhook 與訊息分派。TDX 查詢放在 `services/`，LINE Flex JSON 放在 `flex/`，訂閱資料存取集中在 `repositories/`。Flex Message 只使用 TDX 或台中 OpenData 實際回傳欄位；若資料來源未提供欄位，畫面會顯示 `TDX 尚未提供此欄位` 或對應 fallback，不會硬填假資料。
+`app.py` 負責 Flask routes、LINE webhook 與訊息分派。TDX 查詢放在 `services/`，LINE Flex JSON 放在 `flex/`，共用元件集中在 `flex/common.py`，訂閱資料存取集中在 `repositories/`。Flex Message 只使用 TDX 或台中 OpenData 實際回傳欄位；若資料來源未提供欄位，畫面會直接隱藏該 row，不會硬填假資料或顯示佔位文字。
 
 ## 環境變數
 
@@ -95,7 +100,7 @@ https://你的網域/callback
 
 ## Rich Menu
 
-專案提供 `scripts/setup_rich_menu.py` 產生 LINE Rich Menu 設定。預設是 dry run，只會輸出 JSON，不會修改 LINE 官方帳號。
+專案提供 `scripts/setup_rich_menu.py` 產生 LINE Rich Menu 設定。預設是 dry run，只會輸出 JSON，不會修改 LINE 官方帳號。Rich Menu 圖片固定使用 `assets/rich_menu.png`；若檔案不存在，script 會用 Python 產生一張簡潔現代的 6 格 PNG。
 
 ```bash
 cd traffic_bot
@@ -126,10 +131,16 @@ Rich Menu 採 6 格：
 
 ```bash
 cd traffic_bot
-python scripts/setup_rich_menu.py --apply --image ./assets/rich-menu.png --set-default
+python scripts/setup_rich_menu.py --apply --set-default
 ```
 
-`--set-default` 需要先提供 `--image`，避免 LINE 顯示沒有圖的 Rich Menu。
+若要使用自訂圖片，可以指定 `--image`：
+
+```bash
+python scripts/setup_rich_menu.py --apply --image ./assets/rich_menu.png --set-default
+```
+
+Rich Menu 版面為上排 `查公車`、`找 YouBike`、`查停車場`，下排 `我的訂閱`、`服務狀態`、`使用說明`。
 
 ## Render 部署
 
@@ -176,6 +187,7 @@ curl -X POST https://你的-render-service.onrender.com/internal/push-daily \
 ```text
 /test?text=主選單
 /test?text=查公車
+/test?text=熱門路線
 /test?text=使用說明
 /test?text=hi
 /test?text=300
@@ -196,6 +208,7 @@ curl -X POST https://你的-render-service.onrender.com/internal/push-daily \
 /test?text=西屯停車場
 /test?text=附近停車場
 /test?text=重新整理
+/test?text=重新查詢
 /test?text=換個地點
 /test?text=換個區域
 /test?text=訂閱300
@@ -227,12 +240,32 @@ python -m unittest discover -s tests -v
 
 ## UI 與資料顯示原則
 
-- 主選單與使用說明使用 carousel Flex Message，讓使用者可從首頁、功能說明、訂閱與服務狀態逐步操作。
-- 按鈕採 message action，按下後會送出可被 Bot 辨識的文字，例如 `查公車`、`找 YouBike`、`查停車場`、`主選單`。
+- 主選單使用 5 頁 carousel：首頁總覽、公車查詢、YouBike 查詢、停車場查詢、訂閱與服務。
+- 使用說明使用 5 頁 carousel：如何查公車、如何查 YouBike、如何查停車場、如何訂閱公車、常見問題。
+- 功能入口會先顯示引導卡片；例如輸入 `查公車` 會提示輸入 `300`、`307` 或 `300 往台中車站`。
+- 按鈕採 message action，按下後會送出可被 Bot 辨識的文字。
 - 停車場若 TDX 提供剩餘車位數，會以 `剩餘 42 格` 作為主要資訊。
 - 若資料來源只提供燈號而沒有剩餘格數，Bot 不會把燈號假裝成剩餘數量；畫面會改顯示總車位、地址與狀態等實際有的資料。
 - 缺失欄位不會顯示成 `未提供`、`None`、`N/A` 或 `OpenData 未提供資料`，而是直接隱藏該 row，讓卡片自動重新排版。
 - 查無資料會回傳查無資料卡片，提示使用者換個地點、重新輸入或回主選單。
+
+## 按鈕 action 對應
+
+| 顯示文字 | 送出文字 | Bot 行為 |
+| --- | --- | --- |
+| 查公車 | `查公車` | 顯示公車查詢引導 |
+| 找 YouBike | `找 YouBike` | 顯示 YouBike 查詢引導 |
+| 查停車場 | `查停車場` | 顯示停車場查詢引導 |
+| 熱門路線 | `熱門路線` | 顯示熱門公車路線 |
+| 重新整理 | 公車路線，例如 `300` | 重新查詢該路線 |
+| 訂閱路線 | `訂閱300` | 訂閱該路線 |
+| 重新查詢 | 原查詢文字 | 重新查詢 YouBike 或停車場 |
+| 換個地點 | `換個地點` | 顯示 YouBike 查詢引導 |
+| 換個區域 | `換個區域` | 顯示停車場查詢引導 |
+| 我的訂閱 | `我的訂閱` | 顯示訂閱清單 |
+| 服務狀態 | `服務狀態` | 顯示 LINE Bot 與資料服務狀態 |
+| 使用說明 | `使用說明` | 顯示多頁使用說明 |
+| 主選單 | `主選單` | 回到主選單 carousel |
 
 ## 未來可擴充
 

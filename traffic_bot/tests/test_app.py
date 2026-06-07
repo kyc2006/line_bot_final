@@ -8,10 +8,11 @@ from unittest.mock import patch
 
 import app as app_module
 from flex.bike import youbike_bubble
+from flex.common import help_bubble
 from flex.menu import main_menu_bubble
 from flex.parking import parking_bubble
 from repositories.subscription_repository import SubscriptionRepository
-from scripts.setup_rich_menu import build_rich_menu
+from scripts.setup_rich_menu import build_rich_menu, generate_rich_menu_image
 from services.bike_service import parse_youbike_query
 from services.bus_service import parse_bus_route
 from services.parking_service import parse_parking_query
@@ -145,12 +146,20 @@ class FlexContentTest(unittest.TestCase):
         bike_payload = json.dumps(youbike_bubble("台中車站", SAMPLE_STATIONS), ensure_ascii=False)
         menu_payload = json.dumps(main_menu_bubble(), ensure_ascii=False)
         self.assertIn('"text": "西屯停車場"', parking_payload)
-        self.assertIn('"text": "停車"', parking_payload)
+        self.assertIn('"text": "換個區域"', parking_payload)
         self.assertIn('"text": "YouBike 台中車站"', bike_payload)
-        self.assertIn('"text": "YouBike"', bike_payload)
+        self.assertIn('"text": "換個地點"', bike_payload)
         self.assertIn('"text": "查公車"', menu_payload)
         self.assertIn('"text": "找 YouBike"', menu_payload)
         self.assertIn('"text": "查停車場"', menu_payload)
+
+    def test_menu_and_help_are_multi_page_carousels(self) -> None:
+        menu = main_menu_bubble()
+        help_menu = help_bubble()
+        self.assertEqual(menu["type"], "carousel")
+        self.assertGreaterEqual(len(menu["contents"]), 5)
+        self.assertEqual(help_menu["type"], "carousel")
+        self.assertGreaterEqual(len(help_menu["contents"]), 5)
 
     def test_rich_menu_uses_message_actions_without_token(self) -> None:
         menu = build_rich_menu()
@@ -158,6 +167,13 @@ class FlexContentTest(unittest.TestCase):
         self.assertNotIn("LINE_CHANNEL_ACCESS_TOKEN", payload)
         for text in ("查公車", "找 YouBike", "查停車場", "我的訂閱", "服務狀態", "使用說明"):
             self.assertIn(f'"text": "{text}"', payload)
+
+    def test_rich_menu_image_can_be_generated(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            image_path = Path(temp_dir) / "rich_menu.png"
+            generate_rich_menu_image(image_path)
+            self.assertTrue(image_path.exists())
+            self.assertEqual(image_path.read_bytes()[:8], b"\x89PNG\r\n\x1a\n")
 
 
 class TestEndpointTest(unittest.TestCase):
@@ -185,12 +201,16 @@ class TestEndpointTest(unittest.TestCase):
             "主選單": "flex",
             "hi": "flex",
             "使用說明": "flex",
+            "查公車": "flex",
+            "熱門路線": "flex",
             "服務狀態": "flex",
             "YouBike": "flex",
+            "找 YouBike": "flex",
             "找YouBike": "flex",
             "停車": "flex",
             "查停車場": "flex",
             "重新整理": "flex",
+            "重新查詢": "flex",
             "換個地點": "flex",
             "換個區域": "flex",
             "訂閱300": "flex",

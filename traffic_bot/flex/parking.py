@@ -44,7 +44,7 @@ def parking_bubble(lots: list[dict], query: str = "", limit: int = 6) -> dict:
         "footer": action_buttons(
             [
                 ("重新查詢", f"{query}停車場" if query else "停車場", "primary"),
-                ("換個區域", "停車", None),
+                ("換個區域", "換個區域", None),
                 ("主選單", "主選單", None),
             ]
         ),
