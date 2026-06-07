@@ -152,6 +152,8 @@ cd traffic_bot
 python3 scripts/setup_rich_menu.py --apply --set-default
 ```
 
+LINE Rich Menu API 有兩個網域：建立 Rich Menu 與設為預設使用 `api.line.me`，上傳圖片使用 `api-data.line.me`。`setup_rich_menu.py` 會自動使用正確 endpoint。
+
 若要使用自訂圖片，可以指定 `--image`：
 
 ```bash

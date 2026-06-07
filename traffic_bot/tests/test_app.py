@@ -12,7 +12,12 @@ from flex.common import help_bubble
 from flex.menu import main_menu_bubble
 from flex.parking import parking_bubble
 from repositories.subscription_repository import SubscriptionRepository
-from scripts.setup_rich_menu import build_rich_menu, generate_rich_menu_image
+from scripts.setup_rich_menu import (
+    LINE_DATA_API_BASE,
+    build_rich_menu,
+    generate_rich_menu_image,
+    upload_image,
+)
 from services.bike_service import parse_youbike_query
 from services.bus_service import parse_bus_route
 from services.parking_service import parse_parking_query
@@ -177,6 +182,19 @@ class FlexContentTest(unittest.TestCase):
             self.assertEqual(header[:8], b"\x89PNG\r\n\x1a\n")
             self.assertEqual(int.from_bytes(header[16:20], "big"), 2500)
             self.assertEqual(int.from_bytes(header[20:24], "big"), 1686)
+
+    def test_rich_menu_upload_uses_line_data_endpoint(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            image_path = Path(temp_dir) / "rich_menu.png"
+            image_path.write_bytes(b"\x89PNG\r\n\x1a\n")
+            with patch("scripts.setup_rich_menu.requests.post") as mock_post:
+                mock_post.return_value.status_code = 200
+                upload_image("token", "richmenu-test", image_path)
+
+        self.assertEqual(
+            mock_post.call_args.args[0],
+            f"{LINE_DATA_API_BASE}/richmenu/richmenu-test/content",
+        )
 
 
 class TestEndpointTest(unittest.TestCase):

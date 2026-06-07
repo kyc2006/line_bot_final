@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 
 import requests
+from requests import HTTPError
 
 try:
     from scripts.generate_rich_menu_image import (
@@ -23,6 +24,7 @@ except ModuleNotFoundError:
     )
 
 LINE_API_BASE = "https://api.line.me/v2/bot"
+LINE_DATA_API_BASE = "https://api-data.line.me/v2/bot"
 
 
 def build_rich_menu() -> dict:
@@ -53,6 +55,17 @@ def _headers(token: str) -> dict:
     return {"Authorization": f"Bearer {token}"}
 
 
+def _raise_for_status(response: requests.Response, action: str) -> None:
+    try:
+        response.raise_for_status()
+    except HTTPError as exc:
+        detail = response.text.strip()
+        message = f"{action} failed: HTTP {response.status_code}"
+        if detail:
+            message += f" - {detail}"
+        raise RuntimeError(message) from exc
+
+
 def create_rich_menu(token: str, rich_menu: dict) -> str:
     response = requests.post(
         f"{LINE_API_BASE}/richmenu",
@@ -60,7 +73,7 @@ def create_rich_menu(token: str, rich_menu: dict) -> str:
         json=rich_menu,
         timeout=20,
     )
-    response.raise_for_status()
+    _raise_for_status(response, "Create rich menu")
     return response.json()["richMenuId"]
 
 
@@ -68,12 +81,21 @@ def upload_image(token: str, rich_menu_id: str, image_path: Path) -> None:
     content_type = "image/png" if image_path.suffix.lower() == ".png" else "image/jpeg"
     with image_path.open("rb") as file:
         response = requests.post(
-            f"{LINE_API_BASE}/richmenu/{rich_menu_id}/content",
+            f"{LINE_DATA_API_BASE}/richmenu/{rich_menu_id}/content",
             headers={**_headers(token), "Content-Type": content_type},
             data=file,
             timeout=30,
         )
-    response.raise_for_status()
+    _raise_for_status(response, "Upload rich menu image")
+
+
+def delete_rich_menu(token: str, rich_menu_id: str) -> None:
+    response = requests.delete(
+        f"{LINE_API_BASE}/richmenu/{rich_menu_id}",
+        headers=_headers(token),
+        timeout=20,
+    )
+    _raise_for_status(response, "Delete rich menu")
 
 
 def set_default(token: str, rich_menu_id: str) -> None:
@@ -82,7 +104,7 @@ def set_default(token: str, rich_menu_id: str) -> None:
         headers=_headers(token),
         timeout=20,
     )
-    response.raise_for_status()
+    _raise_for_status(response, "Set default rich menu")
 
 
 def main() -> None:
@@ -111,7 +133,16 @@ def main() -> None:
     rich_menu_id = create_rich_menu(token, rich_menu)
     print(f"Created rich menu: {rich_menu_id}")
 
-    upload_image(token, rich_menu_id, image_path)
+    try:
+        upload_image(token, rich_menu_id, image_path)
+    except Exception as exc:
+        print(f"Image upload failed. Cleaning up created rich menu: {rich_menu_id}")
+        try:
+            delete_rich_menu(token, rich_menu_id)
+            print("Cleaned up rich menu without image.")
+        except Exception as cleanup_exc:
+            print(f"Cleanup failed: {cleanup_exc}")
+        raise SystemExit(str(exc)) from exc
     print(f"Uploaded image: {image_path}")
 
     if args.set_default:
