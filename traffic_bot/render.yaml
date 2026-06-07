@@ -1,0 +1,24 @@
+services:
+  - type: web
+    name: taichung-traffic-line-bot
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app --workers 1 --threads 2 --timeout 120
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.4
+      - key: PUSH_TIMEZONE
+        value: Asia/Taipei
+      - key: PUSH_HOUR
+        value: "8"
+      - key: PUSH_MINUTE
+        value: "0"
+      - key: LINE_CHANNEL_ACCESS_TOKEN
+        sync: false
+      - key: LINE_CHANNEL_SECRET
+        sync: false
+      - key: TDX_CLIENT_ID
+        sync: false
+      - key: TDX_CLIENT_SECRET
+        sync: false
