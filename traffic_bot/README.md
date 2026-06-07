@@ -116,7 +116,7 @@ cd traffic_bot
 python3 scripts/generate_rich_menu_image.py
 ```
 
-圖片規格為 LINE 常用大尺寸 `2500 x 1686 px`。視覺設計採單一操作面板、6 格清楚分區、大字級主標題與低噪音配色，讓手機底部 Rich Menu 顯示時更容易辨識。
+圖片規格為 LINE 常用大尺寸 `2500 x 1686 px`。視覺設計採滿版 6 格、無品牌列壓縮空間、大字級主標題與低噪音配色，讓手機底部 Rich Menu 顯示時更容易辨識。
 
 Dry run 檢查 Rich Menu 點擊區域與圖片路徑：
 

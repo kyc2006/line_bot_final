@@ -164,31 +164,24 @@ def _generate_with_swift(image_path: Path) -> None:
 
         image.lockFocusFlipped(true)
 
-        color(0xEEF3F8).setFill()
+        color(0xFFFFFF).setFill()
         NSRect(x: 0, y: 0, width: width, height: height).fill()
 
-        color(0x20385C).setFill()
-        NSRect(x: 0, y: 0, width: width, height: 184).fill()
-        drawText("台中交通小幫手", x: 84, y: 42, width: 900, size: 78, weight: .bold, fill: .white)
-        drawText("公車・YouBike・停車", x: 86, y: 120, width: 700, size: 34, weight: .semibold, fill: color(0xD9E7F7))
-
-        let panel = NSRect(x: 42, y: 222, width: 2416, height: 1390)
-        roundedRect(panel, radius: 42, fill: .white, stroke: color(0xD7E2F0), lineWidth: 3)
-
+        color(0xF8FAFC).setFill()
+        NSRect(x: 0, y: 843, width: width, height: 843).fill()
         let separator = color(0xE3EAF3)
-        strokeLine(from: NSPoint(x: 833, y: 222), to: NSPoint(x: 833, y: 1612), color: separator, width: 3)
-        strokeLine(from: NSPoint(x: 1667, y: 222), to: NSPoint(x: 1667, y: 1612), color: separator, width: 3)
-        strokeLine(from: NSPoint(x: 42, y: 843), to: NSPoint(x: 2458, y: 843), color: separator, width: 3)
+        strokeLine(from: NSPoint(x: 833, y: 0), to: NSPoint(x: 833, y: height), color: separator, width: 4)
+        strokeLine(from: NSPoint(x: 1667, y: 0), to: NSPoint(x: 1667, y: height), color: separator, width: 4)
+        strokeLine(from: NSPoint(x: 0, y: 843), to: NSPoint(x: width, y: 843), color: separator, width: 4)
 
         for index in 0..<items.count {
             let item = items[index]
             let col = index % 3
             let row = index / 3
             let cellX = CGFloat(col) * 833.333
-            let cellY: CGFloat = row == 0 ? 184 : 843
-            let contentTop = row == 0 ? 292.0 : 1012.0
-            let iconX = cellX + 88.0
-            let titleY = contentTop + 210.0
+            let contentTop = row == 0 ? 122.0 : 965.0
+            let iconX = cellX + 92.0
+            let titleY = contentTop + 238.0
             let accent = color(item.accent)
 
             switch item.icon {
@@ -204,10 +197,10 @@ def _generate_with_swift(image_path: Path) -> None:
                 drawLetterIcon(item.icon, x: iconX, y: contentTop, accent: accent)
             }
 
-            drawText(item.title, x: cellX + 88.0, y: titleY, width: 640, size: 86, weight: .bold, fill: color(0x111827))
-            drawText(item.subtitle, x: cellX + 90.0, y: titleY + 94.0, width: 560, size: 40, weight: .semibold, fill: color(0x667085))
+            drawText(item.title, x: cellX + 92.0, y: titleY, width: 665, size: 118, weight: .bold, fill: color(0x111827))
+            drawText(item.subtitle, x: cellX + 94.0, y: titleY + 126.0, width: 600, size: 56, weight: .bold, fill: color(0x667085))
             color(item.accent).setFill()
-            NSRect(x: cellX + 88.0, y: titleY + 168.0, width: 104, height: 10).fill()
+            NSRect(x: cellX + 94.0, y: titleY + 222.0, width: 132, height: 14).fill()
         }
 
         image.unlockFocus()
@@ -267,20 +260,15 @@ def _generate_with_pillow(image_path: Path) -> None:
 
     width = RICH_MENU_SIZE["width"]
     height = RICH_MENU_SIZE["height"]
-    image = Image.new("RGB", (width, height), "#EEF3F8")
+    image = Image.new("RGB", (width, height), "#FFFFFF")
     draw = ImageDraw.Draw(image)
-    title_font = _font(ImageFont, 92)
-    label_font = _font(ImageFont, 104)
-    subtitle_font = _font(ImageFont, 46)
+    label_font = _font(ImageFont, 118)
+    subtitle_font = _font(ImageFont, 56)
 
-    draw.rectangle([(0, 0), (width, 184)], fill="#20385C")
-    draw.text((84, 42), "台中交通小幫手", fill="#FFFFFF", font=title_font)
-    draw.text((88, 122), "公車・YouBike・停車", fill="#D9E7F7", font=subtitle_font)
-
-    draw.rounded_rectangle([(42, 222), (2458, 1612)], radius=42, fill="#FFFFFF", outline="#D7E2F0", width=3)
+    draw.rectangle([(0, 843), (width, height)], fill="#F8FAFC")
     for x in (833, 1667):
-        draw.line([(x, 222), (x, 1612)], fill="#E3EAF3", width=3)
-    draw.line([(42, 843), (2458, 843)], fill="#E3EAF3", width=3)
+        draw.line([(x, 0), (x, height)], fill="#E3EAF3", width=4)
+    draw.line([(0, 843), (width, 843)], fill="#E3EAF3", width=4)
 
     items = [
         ("查公車", "即時到站", "#2563EB"),
@@ -294,11 +282,11 @@ def _generate_with_pillow(image_path: Path) -> None:
         col = index % 3
         row = index // 3
         cell_x = int(col * 833.333)
-        content_top = 292 if row == 0 else 1012
-        draw.rounded_rectangle([(cell_x + 88, content_top), (cell_x + 238, content_top + 150)], radius=36, fill=accent)
-        draw.text((cell_x + 88, content_top + 210), title, fill="#111827", font=label_font)
-        draw.text((cell_x + 90, content_top + 304), subtitle, fill="#667085", font=subtitle_font)
-        draw.rectangle([(cell_x + 88, content_top + 378), (cell_x + 192, content_top + 388)], fill=accent)
+        content_top = 122 if row == 0 else 965
+        draw.rounded_rectangle([(cell_x + 92, content_top), (cell_x + 242, content_top + 150)], radius=36, fill=accent)
+        draw.text((cell_x + 92, content_top + 238), title, fill="#111827", font=label_font)
+        draw.text((cell_x + 94, content_top + 364), subtitle, fill="#667085", font=subtitle_font)
+        draw.rectangle([(cell_x + 94, content_top + 460), (cell_x + 226, content_top + 474)], fill=accent)
 
     image.save(image_path, format="PNG", optimize=True)
 
@@ -319,30 +307,26 @@ def _generate_plain_png(image_path: Path) -> None:
     for y in range(height):
         row = bytearray()
         for x in range(width):
-            color = (238, 243, 248)
-            if y < 184:
-                color = (32, 56, 92)
-            elif 42 <= x < 2458 and 222 <= y < 1612:
-                color = (255, 255, 255)
-                if x in range(831, 836) or x in range(1665, 1670) or y in range(841, 846):
-                    color = (227, 234, 243)
-                cell_col = min(2, x // 833)
-                cell_row = 0 if y < 843 else 1
-                cell_x = int(cell_col * 833.333)
-                content_top = 292 if cell_row == 0 else 1012
-                accents = [
-                    (37, 99, 235),
-                    (15, 118, 110),
-                    (196, 106, 26),
-                    (71, 85, 105),
-                    (37, 99, 235),
-                    (71, 85, 105),
-                ]
-                accent = accents[cell_row * 3 + cell_col]
-                if cell_x + 88 <= x < cell_x + 238 and content_top <= y < content_top + 150:
-                    color = accent
-                if cell_x + 88 <= x < cell_x + 192 and content_top + 378 <= y < content_top + 388:
-                    color = accent
+            color = (248, 250, 252) if y >= 843 else (255, 255, 255)
+            if x in range(831, 836) or x in range(1665, 1670) or y in range(841, 846):
+                color = (227, 234, 243)
+            cell_col = min(2, x // 833)
+            cell_row = 0 if y < 843 else 1
+            cell_x = int(cell_col * 833.333)
+            content_top = 122 if cell_row == 0 else 965
+            accents = [
+                (37, 99, 235),
+                (15, 118, 110),
+                (196, 106, 26),
+                (71, 85, 105),
+                (37, 99, 235),
+                (71, 85, 105),
+            ]
+            accent = accents[cell_row * 3 + cell_col]
+            if cell_x + 92 <= x < cell_x + 242 and content_top <= y < content_top + 150:
+                color = accent
+            if cell_x + 94 <= x < cell_x + 226 and content_top + 460 <= y < content_top + 474:
+                color = accent
             row.extend(color)
         rows.append(b"\x00" + bytes(row))
 
