@@ -100,11 +100,25 @@ https://你的網域/callback
 
 ## Rich Menu
 
-專案提供 `scripts/setup_rich_menu.py` 產生 LINE Rich Menu 設定。預設是 dry run，只會輸出 JSON，不會修改 LINE 官方帳號。Rich Menu 圖片固定使用 `assets/rich_menu.png`；若檔案不存在，script 會用 Python 產生一張簡潔現代的 6 格 PNG。
+專案提供兩個 Rich Menu script：
+
+- `scripts/generate_rich_menu_image.py`：重新產生 `assets/rich_menu.png`，不會呼叫 LINE API。
+- `scripts/setup_rich_menu.py`：建立、上傳與套用 LINE Rich Menu。預設是 dry run，只會輸出 JSON，不會修改 LINE 官方帳號。
+
+重新產生 Rich Menu 圖片：
 
 ```bash
 cd traffic_bot
-python scripts/setup_rich_menu.py
+python3 scripts/generate_rich_menu_image.py
+```
+
+圖片規格為 LINE 常用大尺寸 `2500 x 1686 px`。視覺設計採單一操作面板、6 格清楚分區、大字級主標題與低噪音配色，讓手機底部 Rich Menu 顯示時更容易辨識。
+
+Dry run 檢查 Rich Menu 點擊區域與圖片路徑：
+
+```bash
+cd traffic_bot
+python3 scripts/setup_rich_menu.py
 ```
 
 Rich Menu 採 6 格：
@@ -127,20 +141,22 @@ Rich Menu 採 6 格：
 使用說明
 ```
 
-建立 Rich Menu 時，token 只從 `LINE_CHANNEL_ACCESS_TOKEN` 環境變數讀取，不會寫死在程式碼中：
+正式建立並設為預設 Rich Menu 時，token 只從 `LINE_CHANNEL_ACCESS_TOKEN` 環境變數讀取，不會寫死在程式碼中：
 
 ```bash
 cd traffic_bot
-python scripts/setup_rich_menu.py --apply --set-default
+python3 scripts/setup_rich_menu.py --apply --set-default
 ```
 
 若要使用自訂圖片，可以指定 `--image`：
 
 ```bash
-python scripts/setup_rich_menu.py --apply --image ./assets/rich_menu.png --set-default
+python3 scripts/setup_rich_menu.py --apply --image ./assets/rich_menu.png --set-default
 ```
 
-Rich Menu 版面為上排 `查公車`、`找 YouBike`、`查停車場`，下排 `我的訂閱`、`服務狀態`、`使用說明`。
+Rich Menu 版面為上排 `查公車`、`找 YouBike`、`查停車場`，下排 `我的訂閱`、`服務狀態`、`使用說明`。每一格都使用 message action，點擊後會送出 Bot 可辨識的文字。
+
+套用後若 LINE App 尚未顯示新版 Rich Menu，請重新進入聊天室、關閉再打開 LINE，或稍等 LINE 快取更新。
 
 ## Render 部署
 

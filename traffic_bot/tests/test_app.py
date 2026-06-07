@@ -173,7 +173,10 @@ class FlexContentTest(unittest.TestCase):
             image_path = Path(temp_dir) / "rich_menu.png"
             generate_rich_menu_image(image_path)
             self.assertTrue(image_path.exists())
-            self.assertEqual(image_path.read_bytes()[:8], b"\x89PNG\r\n\x1a\n")
+            header = image_path.read_bytes()[:24]
+            self.assertEqual(header[:8], b"\x89PNG\r\n\x1a\n")
+            self.assertEqual(int.from_bytes(header[16:20], "big"), 2500)
+            self.assertEqual(int.from_bytes(header[20:24], "big"), 1686)
 
 
 class TestEndpointTest(unittest.TestCase):
