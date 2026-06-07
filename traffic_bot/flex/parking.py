@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from flex.common import action_buttons, has_value, info_row, info_text
 from utils.time_format import display_time
 
 
@@ -40,26 +41,84 @@ def parking_bubble(lots: list[dict], query: str = "", limit: int = 6) -> dict:
             "backgroundColor": "#F8FAFC",
             "contents": [_lot_card(lot) for lot in shown],
         },
-        "footer": {
-            "type": "box",
-            "layout": "horizontal",
-            "spacing": "sm",
-            "contents": [
-                _button("重新查詢", f"{query}停車場" if query else "停車場"),
-                _button("附近停車", "停車"),
-                _button("主選單", "主選單"),
-            ],
-        },
+        "footer": action_buttons(
+            [
+                ("重新查詢", f"{query}停車場" if query else "停車場", "primary"),
+                ("換個區域", "停車", None),
+                ("主選單", "主選單", None),
+            ]
+        ),
     }
 
 
 def _lot_card(lot: dict) -> dict:
-    status = lot.get("status_text", "資料更新中")
+    status = lot.get("status_text", "")
     color = "#0F766E"
     if status == "車位緊張":
         color = "#B45309"
     elif status == "已滿":
         color = "#DC2626"
+
+    contents = [
+        {
+            "type": "text",
+            "text": lot.get("name", "停車場"),
+            "weight": "bold",
+            "size": "md",
+            "color": "#0F172A",
+            "wrap": True,
+        }
+    ]
+
+    if isinstance(lot.get("available_spaces"), int):
+        contents.append(
+            {
+                "type": "box",
+                "layout": "horizontal",
+                "contents": [
+                    {
+                        "type": "text",
+                        "text": f"剩餘 {lot['available_spaces']} 格",
+                        "weight": "bold",
+                        "size": "xl",
+                        "color": color,
+                        "flex": 3,
+                    },
+                    {
+                        "type": "text",
+                        "text": status,
+                        "size": "sm",
+                        "align": "end",
+                        "color": color,
+                        "flex": 2,
+                        "wrap": True,
+                    },
+                ],
+            }
+        )
+    elif has_value(status):
+        contents.append(
+            {
+                "type": "text",
+                "text": status,
+                "weight": "bold",
+                "size": "md",
+                "color": color,
+                "wrap": True,
+            }
+        )
+
+    for row in (
+        info_row("總車位", lot.get("total_spaces")),
+        info_row("地址", lot.get("address")),
+        info_row("收費", lot.get("fare_description")),
+        info_row("營業時間", lot.get("open_time")),
+    ):
+        if row:
+            contents.append(row)
+
+    if len(contents) == 1:
+        contents.append(info_text("目前查不到可用資料，請換個地點或稍後再試。"))
 
     return {
         "type": "box",
@@ -70,72 +129,5 @@ def _lot_card(lot: dict) -> dict:
         "borderColor": "#E2E8F0",
         "borderWidth": "1px",
         "spacing": "sm",
-        "contents": [
-            {
-                "type": "text",
-                "text": lot.get("name", "未提供名稱"),
-                "weight": "bold",
-                "size": "md",
-                "color": "#0F172A",
-                "wrap": True,
-            },
-            {
-                "type": "box",
-                "layout": "horizontal",
-                "contents": [
-                    {
-                        "type": "text",
-                        "text": f"剩餘 {lot.get('available_spaces', '未提供')}",
-                        "weight": "bold",
-                        "size": "lg",
-                        "color": color,
-                        "flex": 1,
-                    },
-                    {
-                        "type": "text",
-                        "text": status,
-                        "size": "sm",
-                        "align": "end",
-                        "color": color,
-                        "flex": 1,
-                    },
-                ],
-            },
-            {
-                "type": "text",
-                "text": f"總車位：{lot.get('total_spaces', '未提供')}",
-                "size": "xs",
-                "color": "#475569",
-            },
-            {
-                "type": "text",
-                "text": lot.get("address", "地址資料更新中"),
-                "size": "xs",
-                "color": "#64748B",
-                "wrap": True,
-            },
-            {
-                "type": "text",
-                "text": f"收費：{lot.get('fare_description', 'TDX 尚未提供此欄位')}",
-                "size": "xs",
-                "color": "#64748B",
-                "wrap": True,
-            },
-            {
-                "type": "text",
-                "text": f"營業時間：{lot.get('open_time', 'TDX 尚未提供此欄位')}",
-                "size": "xs",
-                "color": "#64748B",
-                "wrap": True,
-            },
-        ],
-    }
-
-
-def _button(label: str, text: str) -> dict:
-    return {
-        "type": "button",
-        "style": "secondary",
-        "height": "sm",
-        "action": {"type": "message", "label": label, "text": text},
+        "contents": contents,
     }

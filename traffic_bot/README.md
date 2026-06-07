@@ -93,6 +93,44 @@ https://你的網域/callback
 
 啟用 `Use webhook`，並關閉不需要的 Auto-reply，避免官方自動回覆與 Bot 回覆重疊。
 
+## Rich Menu
+
+專案提供 `scripts/setup_rich_menu.py` 產生 LINE Rich Menu 設定。預設是 dry run，只會輸出 JSON，不會修改 LINE 官方帳號。
+
+```bash
+cd traffic_bot
+python scripts/setup_rich_menu.py
+```
+
+Rich Menu 採 6 格：
+
+- 查公車
+- 找 YouBike
+- 查停車場
+- 我的訂閱
+- 服務狀態
+- 使用說明
+
+每格使用 LINE message action，送出的文字都能被 Bot dispatcher 處理：
+
+```text
+查公車
+找 YouBike
+查停車場
+我的訂閱
+服務狀態
+使用說明
+```
+
+建立 Rich Menu 時，token 只從 `LINE_CHANNEL_ACCESS_TOKEN` 環境變數讀取，不會寫死在程式碼中：
+
+```bash
+cd traffic_bot
+python scripts/setup_rich_menu.py --apply --image ./assets/rich-menu.png --set-default
+```
+
+`--set-default` 需要先提供 `--image`，避免 LINE 顯示沒有圖的 Rich Menu。
+
 ## Render 部署
 
 此專案保留 Render Blueprint 與手動部署流程。
@@ -137,6 +175,7 @@ curl -X POST https://你的-render-service.onrender.com/internal/push-daily \
 
 ```text
 /test?text=主選單
+/test?text=查公車
 /test?text=使用說明
 /test?text=hi
 /test?text=300
@@ -149,11 +188,16 @@ curl -X POST https://你的-render-service.onrender.com/internal/push-daily \
 /test?text=ubike台中車站
 /test?text=腳踏車台中車站
 /test?text=YouBike
+/test?text=找YouBike
 /test?text=附近 YouBike
 /test?text=停車場
 /test?text=查停車
+/test?text=查停車場
 /test?text=西屯停車場
 /test?text=附近停車場
+/test?text=重新整理
+/test?text=換個地點
+/test?text=換個區域
 /test?text=訂閱300
 /test?text=我的訂閱
 /test?text=取消訂閱300
@@ -180,6 +224,15 @@ python -m unittest discover -s tests -v
 ```
 
 測試會 mock TDX 查詢，避免測試時消耗外部 API。
+
+## UI 與資料顯示原則
+
+- 主選單與使用說明使用 carousel Flex Message，讓使用者可從首頁、功能說明、訂閱與服務狀態逐步操作。
+- 按鈕採 message action，按下後會送出可被 Bot 辨識的文字，例如 `查公車`、`找 YouBike`、`查停車場`、`主選單`。
+- 停車場若 TDX 提供剩餘車位數，會以 `剩餘 42 格` 作為主要資訊。
+- 若資料來源只提供燈號而沒有剩餘格數，Bot 不會把燈號假裝成剩餘數量；畫面會改顯示總車位、地址與狀態等實際有的資料。
+- 缺失欄位不會顯示成 `未提供`、`None`、`N/A` 或 `OpenData 未提供資料`，而是直接隱藏該 row，讓卡片自動重新排版。
+- 查無資料會回傳查無資料卡片，提示使用者換個地點、重新輸入或回主選單。
 
 ## 未來可擴充
 

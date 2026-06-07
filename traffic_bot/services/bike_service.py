@@ -5,7 +5,7 @@ import re
 from services.tdx_client import TDXError, tdx_client
 
 
-def _text(value, fallback: str = "未提供") -> str:
+def _text(value, fallback: str = "") -> str:
     if isinstance(value, dict):
         return value.get("Zh_tw") or value.get("En") or fallback
     if value is None:
@@ -38,7 +38,7 @@ def parse_youbike_query(text: str) -> str:
 
 
 def _station_name(item: dict) -> str:
-    return _text(item.get("StationName"), item.get("StationID", "未提供站名"))
+    return _text(item.get("StationName"), item.get("StationID", "YouBike 站點"))
 
 
 def _station_key(item: dict) -> str:
@@ -91,9 +91,9 @@ def search_youbike(keyword: str, limit: int = 6) -> list[dict]:
                 "available_return": returns if returns is not None else "資料更新中",
                 "service_status": _to_int(status.get("ServiceStatus")),
                 "status_text": _service_status_label(_to_int(status.get("ServiceStatus")), rent, returns),
-                "address": address or "TDX 尚未提供此欄位",
+                "address": address,
                 "update_time": status.get("UpdateTime") or status.get("SrcUpdateTime") or "",
-                "capacity": station.get("BikesCapacity") or "TDX 尚未提供此欄位",
+                "capacity": station.get("BikesCapacity") or "",
             }
         )
 

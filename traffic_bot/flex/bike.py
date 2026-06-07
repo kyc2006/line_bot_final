@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from flex.common import action_buttons, info_row
 from utils.time_format import display_time
 
 
@@ -39,21 +40,44 @@ def youbike_bubble(query: str, stations: list[dict], limit: int = 6) -> dict:
             "backgroundColor": "#F8FAFC",
             "contents": [_station_card(station) for station in shown],
         },
-        "footer": {
-            "type": "box",
-            "layout": "horizontal",
-            "spacing": "sm",
-            "contents": [
-                _button("重新查詢", f"YouBike {query}"),
-                _button("其他站點", "YouBike 台中車站"),
-                _button("主選單", "主選單"),
-            ],
-        },
+        "footer": action_buttons(
+            [
+                ("重新查詢", f"YouBike {query}", "primary"),
+                ("換個地點", "YouBike", None),
+                ("主選單", "主選單", None),
+            ]
+        ),
     }
 
 
 def _station_card(station: dict) -> dict:
-    status = station.get("status_text", "資料更新中")
+    status = station.get("status_text", "")
+    contents = [
+        {
+            "type": "text",
+            "text": station.get("station_name", "YouBike 站點"),
+            "weight": "bold",
+            "size": "md",
+            "color": "#0F172A",
+            "wrap": True,
+        },
+        {
+            "type": "box",
+            "layout": "horizontal",
+            "contents": [
+                _metric("可借", str(station.get("available_rent", 0)), "#0F766E"),
+                _metric("可還", str(station.get("available_return", 0)), "#2563EB"),
+            ],
+        },
+    ]
+    for row in (
+        info_row("狀態", status),
+        info_row("容量", station.get("capacity")),
+        info_row("地址", station.get("address")),
+    ):
+        if row:
+            contents.append(row)
+
     return {
         "type": "box",
         "layout": "vertical",
@@ -63,54 +87,7 @@ def _station_card(station: dict) -> dict:
         "borderColor": "#E2E8F0",
         "borderWidth": "1px",
         "spacing": "sm",
-        "contents": [
-            {
-                "type": "text",
-                "text": station.get("station_name", "未提供站名"),
-                "weight": "bold",
-                "size": "md",
-                "color": "#0F172A",
-                "wrap": True,
-            },
-            {
-                "type": "box",
-                "layout": "horizontal",
-                "contents": [
-                    _metric("可借", str(station.get("available_rent", 0)), "#0F766E"),
-                    _metric("可還", str(station.get("available_return", 0)), "#2563EB"),
-                ],
-            },
-            {
-                "type": "text",
-                "text": f"狀態：{status}",
-                "size": "xs",
-                "color": "#475569",
-                "wrap": True,
-            },
-            {
-                "type": "text",
-                "text": f"容量：{station.get('capacity', 'TDX 尚未提供此欄位')}",
-                "size": "xs",
-                "color": "#475569",
-                "wrap": True,
-            },
-            {
-                "type": "text",
-                "text": station.get("address") or "地址資料更新中",
-                "size": "xs",
-                "color": "#64748B",
-                "wrap": True,
-            },
-        ],
-    }
-
-
-def _button(label: str, text: str) -> dict:
-    return {
-        "type": "button",
-        "style": "secondary",
-        "height": "sm",
-        "action": {"type": "message", "label": label, "text": text},
+        "contents": contents,
     }
 
 

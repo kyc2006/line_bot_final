@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from flex.common import action_buttons, info_row
 from utils.time_format import display_time
 
 
@@ -7,7 +8,7 @@ def _direction_label(item: dict) -> str:
     destination = item.get("destination")
     if destination:
         return f"往 {destination}"
-    direction = item.get("direction") or "方向未提供"
+    direction = item.get("direction") or ""
     return str(direction)
 
 
@@ -26,7 +27,7 @@ def _status_color(arrival_text: str) -> str:
 def bus_eta_bubble(route: str, arrivals: list[dict], limit: int = 6) -> dict:
     shown = arrivals[:limit]
     update_time = display_time(shown[0].get("update_time", "") if shown else "")
-    direction = _direction_label(shown[0]) if shown else "方向未提供"
+    direction = _direction_label(shown[0]) if shown else ""
 
     return {
         "type": "bubble",
@@ -45,14 +46,20 @@ def bus_eta_bubble(route: str, arrivals: list[dict], limit: int = 6) -> dict:
                     "color": "#FFFFFF",
                     "wrap": True,
                 },
-                {
-                    "type": "text",
-                    "text": direction,
-                    "size": "sm",
-                    "color": "#CCFBF1",
-                    "margin": "sm",
-                    "wrap": True,
-                },
+                *(
+                    [
+                        {
+                            "type": "text",
+                            "text": direction,
+                            "size": "sm",
+                            "color": "#CCFBF1",
+                            "margin": "sm",
+                            "wrap": True,
+                        }
+                    ]
+                    if direction
+                    else []
+                ),
                 {
                     "type": "text",
                     "text": f"更新於 {update_time}｜資料來源：TDX",
@@ -69,6 +76,13 @@ def bus_eta_bubble(route: str, arrivals: list[dict], limit: int = 6) -> dict:
             "backgroundColor": "#F8FAFC",
             "contents": [_stop_card(item) for item in shown],
         },
+        "footer": action_buttons(
+            [
+                ("重新整理", route, "primary"),
+                ("訂閱路線", f"訂閱{route}", None),
+                ("主選單", "主選單", None),
+            ]
+        ),
     }
 
 
@@ -81,6 +95,41 @@ def bus_eta_carousel(route: str, arrivals: list[dict], limit: int = 6) -> dict:
 
 def _stop_card(item: dict) -> dict:
     arrival_text = str(item.get("arrival_text") or "資料更新中")
+    contents = [
+        {
+            "type": "box",
+            "layout": "horizontal",
+            "contents": [
+                {
+                    "type": "text",
+                    "text": f"📍 {item.get('stop_name') or '站牌'}",
+                    "weight": "bold",
+                    "size": "md",
+                    "color": "#0F172A",
+                    "wrap": True,
+                    "flex": 4,
+                },
+                {
+                    "type": "text",
+                    "text": arrival_text,
+                    "size": "sm",
+                    "weight": "bold",
+                    "align": "end",
+                    "color": _status_color(arrival_text),
+                    "wrap": True,
+                    "flex": 2,
+                },
+            ],
+        },
+    ]
+    detail_rows = [
+        info_row("路線", item.get("route_name")),
+        info_row("方向", _direction_label(item)),
+        info_row("到站", arrival_text),
+        info_row("狀態", item.get("stop_status")),
+    ]
+    contents.extend(row for row in detail_rows if row)
+
     return {
         "type": "box",
         "layout": "vertical",
@@ -90,66 +139,5 @@ def _stop_card(item: dict) -> dict:
         "borderColor": "#E2E8F0",
         "borderWidth": "1px",
         "spacing": "sm",
-        "contents": [
-            {
-                "type": "box",
-                "layout": "horizontal",
-                "contents": [
-                    {
-                        "type": "text",
-                        "text": f"📍 {item.get('stop_name', '未提供站名')}",
-                        "weight": "bold",
-                        "size": "md",
-                        "color": "#0F172A",
-                        "wrap": True,
-                        "flex": 4,
-                    },
-                    {
-                        "type": "text",
-                        "text": arrival_text,
-                        "size": "sm",
-                        "weight": "bold",
-                        "align": "end",
-                        "color": _status_color(arrival_text),
-                        "wrap": True,
-                        "flex": 2,
-                    },
-                ],
-            },
-            {
-                "type": "box",
-                "layout": "vertical",
-                "spacing": "xs",
-                "contents": [
-                    {
-                        "type": "text",
-                        "text": f"🚌 路線：{item.get('route_name', '未提供')}",
-                        "size": "xs",
-                        "color": "#475569",
-                        "wrap": True,
-                    },
-                    {
-                        "type": "text",
-                        "text": f"方向：{_direction_label(item)}",
-                        "size": "xs",
-                        "color": "#475569",
-                        "wrap": True,
-                    },
-                    {
-                        "type": "text",
-                        "text": f"⏱ 到站：{arrival_text}",
-                        "size": "xs",
-                        "color": "#475569",
-                        "wrap": True,
-                    },
-                    {
-                        "type": "text",
-                        "text": f"狀態：{item.get('stop_status', '資料更新中')}",
-                        "size": "xs",
-                        "color": "#64748B",
-                        "wrap": True,
-                    },
-                ],
-            },
-        ],
+        "contents": contents,
     }

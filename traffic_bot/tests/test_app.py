@@ -1,12 +1,17 @@
 from __future__ import annotations
 
+import json
 import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
 
 import app as app_module
+from flex.bike import youbike_bubble
+from flex.menu import main_menu_bubble
+from flex.parking import parking_bubble
 from repositories.subscription_repository import SubscriptionRepository
+from scripts.setup_rich_menu import build_rich_menu
 from services.bike_service import parse_youbike_query
 from services.bus_service import parse_bus_route
 from services.parking_service import parse_parking_query
@@ -107,6 +112,54 @@ class PlaceQueryParserTest(unittest.TestCase):
                 self.assertEqual(parse_parking_query(text), expected)
 
 
+class FlexContentTest(unittest.TestCase):
+    def test_parking_shows_numeric_remaining_when_available(self) -> None:
+        bubble = parking_bubble(SAMPLE_PARKING, query="西屯")
+        payload = json.dumps(bubble, ensure_ascii=False)
+        self.assertIn("剩餘 42 格", payload)
+        self.assertIn("總車位：120", payload)
+
+    def test_parking_hides_missing_fields_without_placeholders(self) -> None:
+        bubble = parking_bubble(
+            [
+                {
+                    "name": "西屯停車場",
+                    "available_spaces": None,
+                    "total_spaces": 120,
+                    "address": "台中市西屯區",
+                    "status_text": "尚有車位",
+                    "fare_description": "",
+                    "open_time": "",
+                    "source": "台中 OpenData",
+                }
+            ],
+            query="西屯",
+        )
+        payload = json.dumps(bubble, ensure_ascii=False)
+        self.assertNotIn("剩餘", payload)
+        for forbidden in ("未提供", "OpenData 未提供", "TDX 尚未提供", "None", "null", "N/A"):
+            self.assertNotIn(forbidden, payload)
+
+    def test_footer_button_actions_are_dispatchable(self) -> None:
+        parking_payload = json.dumps(parking_bubble(SAMPLE_PARKING, query="西屯"), ensure_ascii=False)
+        bike_payload = json.dumps(youbike_bubble("台中車站", SAMPLE_STATIONS), ensure_ascii=False)
+        menu_payload = json.dumps(main_menu_bubble(), ensure_ascii=False)
+        self.assertIn('"text": "西屯停車場"', parking_payload)
+        self.assertIn('"text": "停車"', parking_payload)
+        self.assertIn('"text": "YouBike 台中車站"', bike_payload)
+        self.assertIn('"text": "YouBike"', bike_payload)
+        self.assertIn('"text": "查公車"', menu_payload)
+        self.assertIn('"text": "找 YouBike"', menu_payload)
+        self.assertIn('"text": "查停車場"', menu_payload)
+
+    def test_rich_menu_uses_message_actions_without_token(self) -> None:
+        menu = build_rich_menu()
+        payload = json.dumps(menu, ensure_ascii=False)
+        self.assertNotIn("LINE_CHANNEL_ACCESS_TOKEN", payload)
+        for text in ("查公車", "找 YouBike", "查停車場", "我的訂閱", "服務狀態", "使用說明"):
+            self.assertIn(f'"text": "{text}"', payload)
+
+
 class TestEndpointTest(unittest.TestCase):
     def setUp(self) -> None:
         self.temp_dir = tempfile.TemporaryDirectory()
@@ -134,7 +187,12 @@ class TestEndpointTest(unittest.TestCase):
             "使用說明": "flex",
             "服務狀態": "flex",
             "YouBike": "flex",
+            "找YouBike": "flex",
             "停車": "flex",
+            "查停車場": "flex",
+            "重新整理": "flex",
+            "換個地點": "flex",
+            "換個區域": "flex",
             "訂閱300": "flex",
             "我的訂閱": "flex",
             "取消訂閱300": "flex",
