@@ -50,6 +50,9 @@ def _load_tdx_parking(limit: int) -> list[dict]:
             }
         )
 
+    if not results:
+        return _load_opendata_parking(limit)
+
     results.sort(
         key=lambda row: (
             not isinstance(row["available_spaces"], int),

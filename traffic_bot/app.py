@@ -48,6 +48,21 @@ def health_check():
     }
 
 
+@app.get("/test")
+def test_reply():
+    text = request.args.get("text", "主選單")
+    messages = build_reply_messages(text, "debug-user")
+    replies = []
+    for message in messages:
+        if isinstance(message, TextMessage):
+            replies.append({"type": "text", "text": message.text})
+        elif isinstance(message, FlexMessage):
+            replies.append({"type": "flex", "alt_text": message.alt_text})
+        else:
+            replies.append({"type": message.__class__.__name__})
+    return {"input": text, "replies": replies}
+
+
 @app.post("/callback")
 def callback():
     signature = request.headers.get("X-Line-Signature", "")

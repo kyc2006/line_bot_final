@@ -24,25 +24,32 @@ def _station_name(item: dict) -> str:
     return _zh_tw(item.get("StationName"), item.get("StationID", "未提供站名"))
 
 
+def _station_key(item: dict) -> str:
+    return item.get("StationUID") or item.get("StationID") or ""
+
+
 def search_youbike(keyword: str, limit: int = 3) -> list[dict]:
     keyword = _normalize_keyword(keyword)
     if not keyword:
         return []
 
-    data = tdx_client.get("v2/Bike/Availability/City/Taichung", params={"$top": 2000})
+    stations = tdx_client.get("v2/Bike/Station/City/Taichung", params={"$top": 3000})
+    availability = tdx_client.get("v2/Bike/Availability/City/Taichung", params={"$top": 3000})
+    availability_map = {_station_key(item): item for item in availability}
 
     matches = []
-    for item in data:
-        name = _station_name(item)
+    for station in stations:
+        name = _station_name(station)
         if keyword not in name:
             continue
 
+        status = availability_map.get(_station_key(station), {})
         matches.append(
             {
                 "station_name": name,
-                "available_rent": item.get("AvailableRentBikes", 0),
-                "available_return": item.get("AvailableReturnBikes", 0),
-                "service_status": item.get("ServiceStatus"),
+                "available_rent": status.get("AvailableRentBikes", 0),
+                "available_return": status.get("AvailableReturnBikes", 0),
+                "service_status": status.get("ServiceStatus"),
             }
         )
 

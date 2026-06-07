@@ -55,15 +55,13 @@ def get_bus_eta(route_name: str, limit: int = 3) -> list[dict]:
 
     data = tdx_client.get(
         f"v2/Bus/EstimatedTimeOfArrival/City/Taichung/{quote(route_name)}",
-        params={"$top": 100},
+        params={"$top": 300},
     )
 
     arrivals = []
     for item in data:
         estimate_time = item.get("EstimateTime")
         stop_status = item.get("StopStatus")
-        if estimate_time is None and stop_status not in (0, 1):
-            continue
 
         arrivals.append(
             {
