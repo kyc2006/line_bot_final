@@ -143,8 +143,8 @@ class FlexContentTest(unittest.TestCase):
         )
         payload = json.dumps(bubble, ensure_ascii=False)
         self.assertNotIn("剩餘", payload)
-        self.assertIn("資料更新中", payload)
-        self.assertIn("暫無即時車位", payload)
+        self.assertIn("尚有車位", payload)
+        self.assertNotIn("資料更新中", payload)
         for forbidden in ("未提供", "OpenData 未提供", "TDX 尚未提供", "None", "null", "N/A"):
             self.assertNotIn(forbidden, payload)
 
@@ -206,6 +206,7 @@ class TestEndpointTest(unittest.TestCase):
         app_module.subscription_repository = SubscriptionRepository(self.subscription_file)
         app_module.Config.TEST_TOKEN = ""
         app_module.Config.INTERNAL_API_TOKEN = ""
+        app_module.conversation_contexts.clear()
         self.client = app_module.app.test_client()
 
     def tearDown(self) -> None:
@@ -218,6 +219,16 @@ class TestEndpointTest(unittest.TestCase):
         self.assertIsNotNone(payload)
         self.assertGreaterEqual(payload["message_count"], 1)
         return payload["replies"][0]
+
+    def get_flex_reply(self, text: str) -> dict:
+        response = self.client.get("/test", query_string={"text": text})
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json()
+        self.assertIsNotNone(payload)
+        for reply in payload["replies"]:
+            if reply["type"] == "flex":
+                return reply
+        self.fail(f"No flex reply for {text}: {payload}")
 
     def test_static_and_subscription_inputs(self) -> None:
         expectations = {
@@ -278,7 +289,8 @@ class TestEndpointTest(unittest.TestCase):
             for text in bus_inputs:
                 with self.subTest(text=text):
                     reply = self.get_reply(text)
-                    self.assertEqual(reply["type"], "flex")
+                    if reply["type"] != "flex":
+                        reply = self.get_flex_reply(text)
                     self.assertEqual(reply["alt_text"], "300 公車即時到站資訊")
                     self.assertIn("查詢 300", reply["quick_reply_texts"])
                     self.assertIn("訂閱300", reply["quick_reply_texts"])

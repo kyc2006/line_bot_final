@@ -66,6 +66,22 @@ class ParkingDisplayTest(unittest.TestCase):
         for forbidden in ("None", "null", "N/A", "未提供", "OpenData 未提供"):
             self.assertNotIn(forbidden, payload)
 
+    def test_missing_numeric_fields_preserve_status(self) -> None:
+        bubble = parking_bubble(
+            [
+                {
+                    "name": "市政公園停車場",
+                    "available_spaces": None,
+                    "status_text": "尚有車位",
+                    "address": "台中市西屯區",
+                }
+            ],
+            query="市政府",
+        )
+        payload = json.dumps(bubble, ensure_ascii=False)
+        self.assertIn("尚有車位", payload)
+        self.assertNotIn("資料更新中", payload)
+
     def test_address_only_parking_card_is_kept(self) -> None:
         bubble = parking_bubble(
             [

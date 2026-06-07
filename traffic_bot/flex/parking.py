@@ -57,15 +57,8 @@ def parking_bubble(lots: list[dict], query: str = "", limit: int = 6) -> dict:
 
 def _lot_card(lot: dict) -> dict:
     available_spaces = lot.get("available_spaces")
-    has_available_spaces = isinstance(available_spaces, int)
     status = _display_status(lot)
-    color = "#0F766E"
-    if not has_available_spaces:
-        color = "#475569"
-    elif status == "車位緊張":
-        color = "#B45309"
-    elif status == "已滿":
-        color = "#DC2626"
+    color = _status_color(status)
 
     contents = [
         {
@@ -110,11 +103,14 @@ def _availability_row(available_spaces, status: str, color: str) -> dict:
     primary_text = (
         f"剩餘 {available_spaces} 格"
         if isinstance(available_spaces, int)
+        else status if has_value(status) and status != "暫無即時車位"
         else "資料更新中"
     )
     return {
         "type": "box",
         "layout": "horizontal",
+        "alignItems": "center",
+        "spacing": "sm",
         "contents": [
             {
                 "type": "text",
@@ -125,15 +121,7 @@ def _availability_row(available_spaces, status: str, color: str) -> dict:
                 "flex": 3,
                 "wrap": True,
             },
-            {
-                "type": "text",
-                "text": status,
-                "size": "sm",
-                "align": "end",
-                "color": color,
-                "flex": 2,
-                "wrap": True,
-            },
+            _status_badge(status, color),
         ],
     }
 
@@ -146,7 +134,53 @@ def _display_status(lot: dict) -> str:
         if available_spaces <= 20:
             return "車位緊張"
         return "尚有車位"
+    if has_value(lot.get("status_text")):
+        return str(lot["status_text"])
     return "暫無即時車位"
+
+
+def _status_badge(status: str, color: str) -> dict:
+    return {
+        "type": "box",
+        "layout": "vertical",
+        "backgroundColor": _badge_background(status),
+        "cornerRadius": "999px",
+        "paddingTop": "4px",
+        "paddingBottom": "4px",
+        "paddingStart": "8px",
+        "paddingEnd": "8px",
+        "flex": 0,
+        "contents": [
+            {
+                "type": "text",
+                "text": status,
+                "size": "xs",
+                "weight": "bold",
+                "color": color,
+                "wrap": False,
+            }
+        ],
+    }
+
+
+def _status_color(status: str) -> str:
+    if status == "車位緊張":
+        return "#B45309"
+    if status == "已滿":
+        return "#DC2626"
+    if status == "暫無即時車位":
+        return "#475569"
+    return "#0F766E"
+
+
+def _badge_background(status: str) -> str:
+    if status == "車位緊張":
+        return "#FEF3C7"
+    if status == "已滿":
+        return "#FEE2E2"
+    if status == "暫無即時車位":
+        return "#F1F5F9"
+    return "#DCFCE7"
 
 
 def _parking_title(lot: dict) -> str:

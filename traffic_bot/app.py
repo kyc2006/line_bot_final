@@ -45,9 +45,14 @@ from services.bus_service import (
     parse_bus_destination,
     parse_bus_route,
 )
-from services.parking_service import format_parking_text, parse_parking_query, search_parking
+from services.parking_service import (
+    format_parking_text,
+    inspect_parking_data,
+    parse_parking_query,
+    search_parking,
+)
 from utils.line_message import flex_or_text, make_quick_reply
-from utils.nlu import UserIntent, parse_user_intent
+from utils.nlu import UserIntent, parse_user_intent, resolve_context
 
 
 app = Flask(__name__)
@@ -59,6 +64,8 @@ line_bot_api = MessagingApi(api_client)
 subscription_repository = SubscriptionRepository()
 daily_push_started = False
 daily_push_start_lock = threading.Lock()
+conversation_contexts: dict[str, dict] = {}
+CONTEXT_TTL_SECONDS = 30 * 60
 
 MAIN_QUICK_REPLIES = [
     ("查公車", "查公車"),
@@ -121,18 +128,26 @@ def test_reply():
             abort(401)
 
     text = request.args.get("text", "主選單")
-    intent = parse_user_intent(text)
-    messages = build_reply_messages(text, "debug-user")
-    replies = [summarize_message(message) for message in messages]
-    return {
+    user_id = request.args.get("user", "debug-user")
+    if request.args.get("reset_context") == "1":
+        conversation_contexts.pop(user_id, None)
+    result = build_reply_result(text, user_id)
+    replies = [summarize_message(message) for message in result["messages"]]
+    payload = {
         "input": text,
-        "parsed_intent": intent.name,
-        "confidence": intent.confidence,
-        "extracted_entities": intent.entities,
+        "parsed_intent": result["intent"].name,
+        "confidence": result["intent"].confidence,
+        "entities": result["intent"].entities,
+        "extracted_entities": result["intent"].entities,
+        "context_before": result["context_before"],
+        "context_after": result["context_after"],
         "message_count": len(replies),
         "quick_reply_count": sum(reply.get("quick_reply_count", 0) for reply in replies),
         "replies": replies,
     }
+    if request.args.get("debug") == "1":
+        payload["parking_debug"] = inspect_parking_data()
+    return payload
 
 
 @app.post("/internal/push-daily")
@@ -180,10 +195,36 @@ def handle_text_message(event: MessageEvent):
 
 
 def build_reply_messages(text: str, user_id: str | None = None) -> list:
-    intent = parse_user_intent(text)
+    return build_reply_result(text, user_id)["messages"]
 
+
+def build_reply_result(text: str, user_id: str | None = None) -> dict:
+    context_before = get_user_context(user_id)
+    parsed_intent = parse_user_intent(text)
+    intent = resolve_context(parsed_intent, context_before)
+    messages = dispatch_intent(text, user_id, intent)
+    context_after = update_user_context(user_id, intent)
+    return {
+        "intent": intent,
+        "context_before": context_before,
+        "context_after": context_after,
+        "messages": messages,
+    }
+
+
+def dispatch_intent(text: str, user_id: str | None, intent: UserIntent) -> list:
     if intent.name in ("main_menu", "greeting"):
         return build_main_menu_messages()
+
+    if intent.name == "capability_question":
+        return [
+            flex_or_text(
+                "台中交通小幫手功能介紹",
+                main_menu_bubble,
+                "我可以幫你查台中公車、YouBike 和停車資訊。你可以直接問：300多久到、逢甲附近有 YouBike 嗎、西屯哪裡有車位。",
+                MAIN_QUICK_REPLIES,
+            )
+        ]
 
     if intent.name == "help":
         return [
@@ -239,18 +280,40 @@ def build_reply_messages(text: str, user_id: str | None = None) -> list:
         return build_youbike_prompt_messages()
 
     if intent.name == "bike_search":
-        return build_youbike_messages(intent.query)
+        return with_intro(
+            build_youbike_messages(intent.query),
+            f"幫你找{intent.query or '附近'}的 YouBike 站點，會優先顯示可借與可還數量。",
+            _is_conversational_query(text),
+        )
 
     if intent.name == "parking_guide":
         return build_parking_prompt_messages()
 
     if intent.name == "parking_search":
-        return build_parking_messages(intent.query)
+        return with_intro(
+            build_parking_messages(intent.query),
+            f"幫你找{intent.query or '台中'}附近的停車場，優先顯示有即時車位的資料。",
+            _is_conversational_query(text),
+        )
 
     if intent.name == "bus_search":
-        return build_bus_eta_messages(intent.route, intent.entities.get("destination", ""))
+        return with_intro(
+            build_bus_eta_messages(intent.route, intent.entities.get("destination", "")),
+            f"幫你查 {intent.route} 公車即時到站資訊。",
+            _is_conversational_query(text),
+        )
 
     if intent.name == "retry_guide":
+        return build_retry_guide_messages()
+
+    if intent.name == "clarify":
+        target = intent.entities.get("target_intent")
+        if target == "bus_search":
+            return build_bus_prompt_messages()
+        if target == "bike_search":
+            return build_youbike_prompt_messages()
+        if target == "parking_search":
+            return build_parking_prompt_messages()
         return build_retry_guide_messages()
 
     return [
@@ -261,6 +324,55 @@ def build_reply_messages(text: str, user_id: str | None = None) -> list:
             UNKNOWN_QUICK_REPLIES,
         )
     ]
+
+
+def with_intro(messages: list, intro: str, enabled: bool) -> list:
+    if not enabled:
+        return messages
+    return [TextMessage(text=intro), *messages]
+
+
+def _is_conversational_query(text: str) -> bool:
+    return any(keyword in text for keyword in ("我", "幫", "附近", "哪裡", "多久", "現在", "想", "可以", "還有"))
+
+
+def get_user_context(user_id: str | None) -> dict:
+    if not user_id:
+        return {}
+    context = conversation_contexts.get(user_id, {}).copy()
+    updated_at = float(context.get("updated_at") or 0)
+    if updated_at and time.time() - updated_at <= CONTEXT_TTL_SECONDS:
+        return context
+    conversation_contexts.pop(user_id, None)
+    return {}
+
+
+def update_user_context(user_id: str | None, intent: UserIntent) -> dict:
+    if not user_id:
+        return {}
+    context = get_user_context(user_id)
+    context["last_intent"] = intent.name
+    context["updated_at"] = round(time.time(), 3)
+
+    if intent.name == "clarify":
+        target = intent.entities.get("target_intent")
+        if target in ("bus_search", "bike_search", "parking_search"):
+            context["pending_intent"] = target
+        conversation_contexts[user_id] = context
+        return context
+
+    context.pop("pending_intent", None)
+    if intent.name == "bus_search" and intent.route:
+        context["last_bus_route"] = intent.route
+    elif intent.name == "bike_search" and intent.query:
+        context["last_bike_query"] = intent.query
+    elif intent.name == "parking_search" and intent.query:
+        context["last_parking_query"] = intent.query
+    elif intent.name == "bus_subscribe" and intent.route:
+        context["last_bus_route"] = intent.route
+
+    conversation_contexts[user_id] = context
+    return context.copy()
 
 
 def build_main_menu_messages() -> list:
